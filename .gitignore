@@ -1,0 +1,15 @@
+CMakeFiles
+CMakeScripts
+CMakeCache.txt
+*.cmake
+Makefile
+
+build
+Debug
+*.bnh
+*.hxg
+*.xcodeproj
+
+*.a
+*.dylib
+hxtool
