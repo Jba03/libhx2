@@ -47,12 +47,10 @@ enum hx_codec {
   HX_CODEC_PCM  = 0x01, /* PCM */
   HX_CODEC_UBI  = 0x02, /* UBI ADPCM */
   HX_CODEC_PSX  = 0x03, /* PS ADPCM */
-  HX_CODEC_DSP  = 0x04, /* GC 4-bit ADPCM */
+  HX_CODEC_NGC_DSP  = 0x04, /* GC 4-bit ADPCM */
   HX_CODEC_XIMA = 0x05, /* MS IMA ADPCM */
   HX_CODEC_MP3  = 0x55,
 };
-
-#pragma mark - Audio stream
 
 struct hx_audio_stream {
   enum hx_codec codec;
@@ -65,18 +63,15 @@ struct hx_audio_stream {
 };
 
 /** hx_decode_ngc_dsp:
- * Decode NGC-DSP-ADPCM data into PCM samples.
- **/
+ * Decode NGC-DSP-ADPCM data into PCM samples. */
 int hx_decode_ngc_dsp(hx_t *hx, hx_audio_stream_t *in_dsp, hx_audio_stream_t *out_pcm);
 
 /** hx_encode_ngc_dsp:
- * Encode PCM samples into NGC-DSP-ADPCM data.
- **/
+ * Encode PCM samples into NGC-DSP-ADPCM data. */
 int hx_encode_ngc_dsp(hx_t *hx, hx_audio_stream_t *in_pcm, hx_audio_stream_t *out_dsp);
 
 /** hx_audio_stream_write_wav:
- * Write audio stream to a .wav file
- */
+ * Write audio stream to a .wav file */
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename);
 
 struct hx_waveformat_header {
@@ -101,7 +96,7 @@ typedef struct hx_event_resource_data {
   char* name;
   uint32_t type;
   uint32_t flags;
-  uint64_t link_cuuid;
+  hx_cuuid_t link_cuuid;
   float f_param[4];
 } hx_event_resource_data_t;
 
@@ -141,7 +136,7 @@ typedef struct hx_wav_resource_data {
 
 typedef struct hx_random_resource_data_link {
   /* cuuid of the linked resdata */
-  uint64_t cuuid;
+  hx_cuuid_t cuuid;
   /* probability of being played */
   float probability;
 } hx_random_resource_data_link_t;
@@ -199,12 +194,12 @@ typedef struct hx_wave_file_id_object {
 typedef struct hx_entry_language_link {
   uint32_t code;
   uint32_t unknown;
-  uint64_t cuuid;
+  hx_cuuid_t cuuid;
 } hx_entry_language_link_t;
 
 struct hx_entry {
   /** Unique identifier */
-  uint64_t cuuid;
+  hx_cuuid_t cuuid;
   /** The class of the entry object */
   enum hx_class class;
   /** Entry class data */
@@ -213,7 +208,7 @@ struct hx_entry {
   /** Number of linked entries */
   uint32_t num_links;
   /** Linked entry CUUIDs */
-  uint64_t* links;
+  hx_cuuid_t* links;
   
   /** Number of languages */
   uint32_t num_languages;
@@ -249,7 +244,7 @@ void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count);
 
 /** hx_context_entry_lookup:
  * Find entry by cuuid */
-hx_entry_t *hx_context_entry_lookup(hx_t *hx, uint64_t cuuid);
+hx_entry_t *hx_context_entry_lookup(hx_t *hx, hx_cuuid_t cuuid);
 
 /** hx_context_write:
  * Write context to memory. */

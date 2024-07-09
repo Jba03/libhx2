@@ -21,6 +21,9 @@ static uint8_t* read_callback(const char* filename, size_t pos, size_t *size) {
   } else {
     fp = fopen(filename, "rb");
   }
+  
+  if (!fp) return NULL;
+  
   fseek(fp, 0, SEEK_END);
   size_t real_size = ftell(fp);
   if (*size > real_size) *size = real_size;
@@ -45,14 +48,10 @@ int main(int argc, char** argv) {
   hx_context_callback(hx, &read_callback, &write_callback);
   
   if (!hx_context_open(hx, argv[1])) {
-    fprintf(stderr, "[hx] error: %s\n", hx_error_string(hx));
     return -1;
   }
   
-  
-  
-  
-  int num_entries;
+  int num_entries = 0;
   hx_entry_t* entries;
   hx_context_get_entries(hx, &entries, &num_entries);
   
@@ -71,6 +70,6 @@ int main(int argc, char** argv) {
     }
   }
   
-  hx_context_write(hx, 0);
-  hx_context_dealloc(&hx);
+  //hx_context_write(hx, "output.hxg");
+  hx_context_free(&hx);
 }

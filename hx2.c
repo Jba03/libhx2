@@ -142,13 +142,13 @@ struct hx {
   hx_stream_t stream;
   hx_read_callback_t read_cb;
   hx_write_callback_t write_cb;
-  char error[256];
 };
 
 struct hx_version_table_entry {
   const char* name;
   const char* platform;
   uint8_t endianness;
+  uint32_t supported_codecs;
 };
 
 struct hx_class_table_entry {
@@ -162,13 +162,25 @@ struct hx_class_table_entry {
 static const struct hx_class_table_entry hx_class_table[];
 
 static const struct hx_version_table_entry hx_version_table[] = {
-  [HX_VERSION_HXD] = {"hxd", "PC", HX_BIG_ENDIAN},
-  [HX_VERSION_HXC] = {"hxc", "PC", HX_LITTLE_ENDIAN},
-  [HX_VERSION_HX2] = {"hx2", "PS2", HX_LITTLE_ENDIAN},
-  [HX_VERSION_HXG] = {"hxg", "GC", HX_BIG_ENDIAN},
-  [HX_VERSION_HXX] = {"hxx", "XBox", HX_BIG_ENDIAN},
-  [HX_VERSION_HX3] = {"hx3", "PS3", HX_LITTLE_ENDIAN},
+  [HX_VERSION_HXD] = {"hxd", "PC", HX_BIG_ENDIAN, 0},
+  [HX_VERSION_HXC] = {"hxc", "PC", HX_LITTLE_ENDIAN, HX_CODEC_UBI | HX_CODEC_PCM},
+  [HX_VERSION_HX2] = {"hx2", "PS2", HX_LITTLE_ENDIAN, HX_CODEC_PSX},
+  [HX_VERSION_HXG] = {"hxg", "GC", HX_BIG_ENDIAN, HX_CODEC_NGC_DSP},
+  [HX_VERSION_HXX] = {"hxx", "XBox", HX_BIG_ENDIAN, 0},
+  [HX_VERSION_HX3] = {"hx3", "PS3", HX_LITTLE_ENDIAN, 0},
 };
+
+static const char* hx_codec_name(const enum hx_codec c) {
+  switch (c) {
+    case HX_CODEC_PCM: return "pcm-s16le";
+    case HX_CODEC_UBI: return "ubi";
+    case HX_CODEC_PSX: return "psx";
+    case HX_CODEC_NGC_DSP: return "ngc-dsp-adpcm-s16le";
+    case HX_CODEC_XIMA:return "xima";
+    case HX_CODEC_MP3: return "mp3";
+    default: return "invalid";
+  }
+}
 
 static enum hx_class hx_class_from_string(const char* name) {
   if (*name++ != 'C') return HX_CLASS_INVALID;
@@ -205,7 +217,9 @@ hx_entry_t *hx_context_entry_lookup(hx_t *hx, uint64_t cuuid) {
 static int hx_error(hx_t *hx, const char* format, ...) {
   va_list args;
   va_start(args, format);
-  vsprintf(hx->error, format, args);
+  printf("[libhx] ");
+  vprintf(format, args);
+  printf("\n");
   va_end(args);
   return 0;
 }
@@ -269,7 +283,7 @@ static void hx_waveformat_default_header(struct hx_waveformat_header *h) {
 
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename) {
   if (s->codec != HX_CODEC_PCM) {
-    hx_error(hx, "wave file data must be pcm encoded\n");
+    return hx_error(hx, "cannot write wave file: data must be pcm encoded!\n");
   }
   
   struct hx_waveformat_header header;
@@ -590,7 +604,6 @@ static int hx_class_read_wave_file_id_obj(hx_t *hx, hx_entry_t *entry) {
   
   if (!hx_waveformat_header(&hx->stream, &data->wave_header, 0)) {
     hx_error(hx, "failed to read wave format header");
-    printf("error: %s\n", hx_error_string(hx));
     return 0;
   }
   
@@ -659,6 +672,13 @@ static int hx_class_write_wave_file_id_obj(hx_t *hx, hx_entry_t *entry) {
   }
   
   hx_audio_stream_t *audio_stream = data->audio_stream;
+  /* Verify that the codec is supported by the target version */
+  if (!(hx_version_table[hx->version].supported_codecs & audio_stream->codec)) {
+    return hx_error(hx, "failed to write WaveFileIdObj data for %016llX: codec '%s' is not supported by version '%s'", entry->cuuid, hx_codec_name(audio_stream->codec), hx_version_table[hx->version].name);
+  }
+
+  
+  
   data->wave_header.format = audio_stream->codec;
   data->wave_header.channels = audio_stream->num_channels;
   data->wave_header.data_length = audio_stream->size;
@@ -678,10 +698,10 @@ static int hx_class_write_wave_file_id_obj(hx_t *hx, hx_entry_t *entry) {
   } else {
     data->wave_header.data_code = 0x61746164; /* "data" */
     hx_stream_write(s, audio_stream->data, data->wave_header.data_length);
-    /* todo... */
   }
   
   if (data->extra_wave_data) {
+    /* todo... */
     hx_stream_write(s, data->extra_wave_data, data->extra_wave_data_length);
   }
   
@@ -736,10 +756,8 @@ static int hx_entry_write(hx_t *hx, hx_entry_t *entry) {
   hx_stream_write32(s, &name_length);
   hx_stream_write(s, name, name_length);
   hx_stream_writecuuid(s, &entry->cuuid);
-  
-  if (entry->class != HX_CLASS_INVALID) {
-    return hx_class_table[entry->class].write(hx, entry);
-  }
+  return entry->class != HX_CLASS_INVALID ?
+  hx_class_table[entry->class].write(hx, entry) : 0;
 }
 
 static int hx_read(hx_t *hx) {
@@ -847,7 +865,9 @@ static void hx_write(hx_t *hx) {
     hx_class_to_string(hx, entry.class, classname, &classname_length);
     
     printf("Writing [%d]: %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry.cuuid);
-    hx_entry_write(hx, &entry);
+    if (!hx_entry_write(hx, &entry)) {
+      return hx_error(hx, "failed to write entry %016llX", entry.cuuid);
+    }
 
     hx_stream_write32(&index_stream, &classname_length);
     hx_stream_write(&index_stream, classname, classname_length);
@@ -955,10 +975,6 @@ void hx_context_write(hx_t *hx, const char* filename) {
 
 void hx_context_free(hx_t **hx) {
   free(*hx);
-}
-
-const char* hx_error_string(hx_t *hx) {
-  return hx->error;
 }
 
 #pragma mark - Codec
