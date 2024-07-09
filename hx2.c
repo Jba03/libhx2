@@ -394,10 +394,10 @@ static int hx_class_read_wave_resource_data(hx_t *hx, hx_entry_t *entry) {
   printf("WavResData @ 0x%zX (flags = %d, sz = %d, flags = %X, default = %016llX numLinks = %d)\n", s->pos, data->res_data.flags, data->res_data.size, data->res_data.flags, data->default_cuuid, data->num_links);
   
   for (int i = 0; i < data->num_links; i++) {
-    hx_stream_read32(s, (uint32_t*)data->links[i].language_code);
+    hx_stream_read32(s, &data->links[i].language);
     hx_stream_readcuuid(s, &data->links[i].cuuid);
-    *(uint32_t*)data->links[i].language_code = bswap32(*(uint32_t*)data->links[i].language_code);
-    printf("\tlink[%d]: (language = %.2s, cuuid = %016llX)\n", i, data->links[i].language_code, data->links[i].cuuid);
+    uint32_t language_code = bswap32(data->links[i].language);
+    printf("\tlink[%d]: (language = %.2s, cuuid = %016llX)\n", i, (char*)&language_code, data->links[i].cuuid);
   }
   
   entry->data = data;
@@ -416,8 +416,7 @@ static int hx_class_write_wave_resource_data(hx_t *hx, hx_entry_t *entry) {
   }
   
   for (int i = 0; i < data->num_links; i++) {
-    uint32_t language_code = bswap32(*(uint32_t*)data->links[i].language_code);
-    hx_stream_write32(&hx->stream, (uint32_t*)&language_code);
+    hx_stream_write32(&hx->stream, &data->links[i].language);
     hx_stream_writecuuid(&hx->stream, &data->links[i].cuuid);
   }
 }
@@ -601,7 +600,6 @@ static int hx_class_read_wave_file_id_obj(hx_t *hx, hx_entry_t *entry) {
   audio_stream->endianness = s->endianness;
   audio_stream->size = data->wave_header.data_length;
   audio_stream->sample_rate = data->wave_header.sample_rate;
-  //audio_stream->num_samples =
   
   data->audio_stream = audio_stream;
   
@@ -627,11 +625,6 @@ static int hx_class_read_wave_file_id_obj(hx_t *hx, hx_entry_t *entry) {
     /* read internal stream data */
     audio_stream->data = malloc(data->wave_header.data_length);
     memcpy(audio_stream->data, s->buf + s->pos, data->wave_header.data_length);
-    
-    // 278D0
-    // 80490
-    // 80A90
-    // 563560A36CFE3EDF
     hx_stream_advance(s, data->wave_header.data_length);
   }
   

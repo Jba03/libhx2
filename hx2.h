@@ -13,9 +13,16 @@
 typedef struct hx hx_t;
 typedef struct hx_entry hx_entry_t;
 typedef struct hx_audio_stream hx_audio_stream_t;
+typedef uint64_t hx_cuuid_t;
 
 typedef uint8_t* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size);
 typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size);
+
+#define HX_LANGUAGE_DE 0x20206564
+#define HX_LANGUAGE_EN 0x20206E65
+#define HX_LANGUAGE_ES 0x20207365
+#define HX_LANGUAGE_FR 0x20207266
+#define HX_LANGUAGE_IT 0x20207469
 
 enum hx_version {
   HX_VERSION_HXD, /* Rayman M/Arena */
@@ -67,6 +74,9 @@ int hx_decode_ngc_dsp(hx_t *hx, hx_audio_stream_t *in_dsp, hx_audio_stream_t *ou
  **/
 int hx_encode_ngc_dsp(hx_t *hx, hx_audio_stream_t *in_pcm, hx_audio_stream_t *out_dsp);
 
+/** hx_audio_stream_write_wav:
+ * Write audio stream to a .wav file
+ */
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename);
 
 struct hx_waveformat_header {
@@ -110,13 +120,11 @@ typedef struct hx_wav_resource_object {
   char* name;
 } hx_wav_resource_object_t;
 
-
-
-
 typedef struct hx_wav_resource_data_link {
-  char language_code[4];
-  /** CUUID of linked WaveFileIdObj */
-  uint64_t cuuid;
+  /** Language of the linked entry */
+  uint32_t language;
+  /** Link to WaveFileIdObj */
+  hx_cuuid_t cuuid;
 } hx_wav_resource_data_link_t;
 
 
@@ -125,10 +133,10 @@ typedef struct hx_wav_resource_data_link {
  *  Superclass to WavResData
  */
 typedef struct hx_wav_resource_data {
-  struct hx_wav_resource_object res_data;
-  uint64_t default_cuuid;
+  hx_wav_resource_object_t res_data;
+  hx_cuuid_t default_cuuid;
   uint32_t num_links;
-  struct hx_wav_resource_data_link* links;
+  hx_wav_resource_data_link_t* links;
 } hx_wav_resource_data_t;
 
 typedef struct hx_random_resource_data_link {
@@ -152,7 +160,7 @@ typedef struct hx_random_resource_data {
   /** Number of CResData links */
   uint32_t num_links;
   /** ResData links */
-  struct hx_random_resource_data_link *links;
+  hx_random_resource_data_link_t* links;
 } hx_random_resource_data_t;
 
 typedef struct hx_id_object_pointer {
@@ -220,48 +228,39 @@ struct hx_entry {
 };
 
 /** hx_context_alloc:
- * Allocate an empty context.
- **/
+ * Allocate an empty context. */
 hx_t *hx_context_alloc(int options);
 
 /** hx_context_callback:
- * Set the read and write callbacks for the specified context.
- **/
+ * Set the read and write callbacks for the specified context. */
 void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write);
 
 /** hx_context_open:
- * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`.
- **/
+ * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`. */
 int hx_context_open(hx_t *hx, const char* filename);
 
 /** hx_context_open2:
- * Load a hxaudio file from memory into context `hx`.
- **/
+ * Load a hxaudio file from memory into context `hx`. */
 int hx_context_open2(hx_t *hx, uint8_t* buf, size_t sz);
 
 /** hx_context_get_entries:
- * Get the entries for the specified context
- */
+ * Get all entries for the specified context */
 void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count);
 
 /** hx_context_entry_lookup:
- * Find an entry by cuuid
- **/
+ * Find entry by cuuid */
 hx_entry_t *hx_context_entry_lookup(hx_t *hx, uint64_t cuuid);
 
 /** hx_context_write:
- * Write context to memory.
- **/
+ * Write context to memory. */
 void hx_context_write(hx_t *hx, const char* filename);
 
 /** hx_context_free:
- * Deallocate and free a context.
- **/
+ * Deallocate a context. */
 void hx_context_free(hx_t **hx);
 
 /** hx_error_string:
- * Get the current error message.
- */
+ * Get the current error message. */
 const char* hx_error_string(hx_t *hx);
 
 #endif /* hx2_h */
