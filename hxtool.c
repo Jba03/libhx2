@@ -12,7 +12,7 @@
 
 FILE *hstfile;
 
-static uint8_t* read_callback(const char* filename, size_t pos, size_t *size) {
+static char* read_callback(const char* filename, size_t pos, size_t *size) {
   
   FILE* fp = NULL;
   if (strcmp(filename, "RAYMAN3.HST") == 0 || strcmp(filename, "Data.hst") == 0) {
@@ -29,7 +29,7 @@ static uint8_t* read_callback(const char* filename, size_t pos, size_t *size) {
   if (*size > real_size) *size = real_size;
   fseek(fp, pos, SEEK_SET);
   
-  uint8_t* data = malloc(*size);
+  char* data = malloc(*size);
   fread(data, *size, 1, fp);
   
   if (fp != hstfile) fclose(fp);

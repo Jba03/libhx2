@@ -12,9 +12,9 @@ typedef unsigned int hx_size_t;
 
 #define HX_BIG_ENDIAN 1
 #define HX_LITTLE_ENDIAN 0
-#define HX_NATIVE_ENDIAN (!*(uint8_t*)&(uint16_t){1})
-#define HX_BYTESWAP16(data) ((uint16_t)((uint16_t)(data) << 8 | (uint16_t)(data) >> 8))
-#define HX_BYTESWAP32(data) ((uint32_t)(HX_BYTESWAP16((uint32_t)(data)) << 16 | HX_BYTESWAP16((uint32_t)(data) >> 16)))
+#define HX_NATIVE_ENDIAN (!*(unsigned char*)&(unsigned short){1})
+#define HX_BYTESWAP16(data) ((unsigned short)((unsigned short)(data) << 8 | (unsigned short)(data) >> 8))
+#define HX_BYTESWAP32(data) ((unsigned int)(HX_BYTESWAP16((unsigned int)(data)) << 16 | HX_BYTESWAP16((unsigned int)(data) >> 16)))
 
 #define HX_STREAM_MODE_READ 0
 #define HX_STREAM_MODE_WRITE 1
