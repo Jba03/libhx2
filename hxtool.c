@@ -46,7 +46,7 @@ static void write_callback(const char* filename, void* data, size_t pos, size_t 
 int main(int argc, char** argv) {
   hx_t* hx = hx_context_alloc(0);
   hx_context_callback(hx, &read_callback, &write_callback);
-  
+
   if (!hx_context_open(hx, argv[1])) {
     return -1;
   }
@@ -61,12 +61,14 @@ int main(int argc, char** argv) {
       struct hx_wave_file_id_object* obj = entry->data;
       struct hx_audio_stream* audio = obj->audio_stream;
       
-      char name[256]; if (obj->id_obj.flags & (1 << 0))  sprintf(name, "EXT-%016llX.wav", entry->cuuid);
-      else sprintf(name, "%016llX.wav", entry->cuuid);
+      char name[256]; if (obj->id_obj.flags & (1 << 0)) sprintf(name, "Output/EXT-%016llX.wav", entry->cuuid);
+      else sprintf(name, "Output/%016llX.wav", entry->cuuid);
       
-      hx_audio_stream_t out;
-      hx_decode_ngc_dsp(hx, audio, &out);
-      hx_audio_stream_write_wav(hx, &out, name);
+      if (audio->codec == HX_CODEC_NGC_DSP) {
+        hx_audio_stream_t out;
+        ngc_dsp_decode(hx, audio, &out);
+        hx_audio_stream_write_wav(hx, &out, name);
+      }
     }
   }
   

@@ -1,6 +1,7 @@
 /*****************************************************************
- # libhx2: library for reading and writing ubi hxaudio files
+ # hx2.h: Context declarations
  *****************************************************************
+ * libhx2: library for reading and writing ubi hxaudio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 
@@ -9,6 +10,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+#include "wave.h"
 
 typedef struct hx hx_t;
 typedef struct hx_entry hx_entry_t;
@@ -62,38 +65,22 @@ struct hx_audio_stream {
   uint32_t num_samples;
 };
 
-/** hx_decode_ngc_dsp:
- * Decode NGC-DSP-ADPCM data into PCM samples. */
-int hx_decode_ngc_dsp(hx_t *hx, hx_audio_stream_t *in_dsp, hx_audio_stream_t *out_pcm);
+/** ngc_dsp_decode:
+ * Decode NGC-DSP ADPCM data into PCM samples. */
+int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in_dsp, hx_audio_stream_t *out_pcm);
 
-/** hx_encode_ngc_dsp:
- * Encode PCM samples into NGC-DSP-ADPCM data. */
-int hx_encode_ngc_dsp(hx_t *hx, hx_audio_stream_t *in_pcm, hx_audio_stream_t *out_dsp);
+/** ngc_dsp_encode:
+ * Encode PCM samples into NGC-DSP ADPCM data. */
+int ngc_dsp_encode(hx_t *hx, hx_audio_stream_t *in_pcm, hx_audio_stream_t *out_dsp);
 
 /** hx_audio_stream_write_wav:
  * Write audio stream to a .wav file */
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename);
 
-struct hx_waveformat_header {
-  uint32_t riff_code;
-  uint32_t riff_length;
-  uint32_t wave_code;
-  uint32_t fmt_code;
-  uint32_t chunk_size;
-  uint16_t format;
-  uint16_t channels;
-  uint32_t sample_rate;
-  uint32_t bytes_per_second;
-  uint16_t alignment;
-  uint16_t bits_per_sample;
-  uint32_t data_code;
-  uint32_t data_length;
-};
-
 #pragma mark - Class -
 
 typedef struct hx_event_resource_data {
-  char* name;
+  char name[256];
   uint32_t type;
   uint32_t flags;
   hx_cuuid_t link_cuuid;
@@ -168,12 +155,12 @@ typedef struct hx_id_object_pointer {
 
 typedef struct hx_wave_file_id_object {
   struct hx_id_object_pointer id_obj;
-  struct hx_waveformat_header wave_header;
+  struct wave_header wave_header;
   
   uint32_t num_samples;
   
   /* filename of the external stream */
-  char* ext_stream_filename;
+  char ext_stream_filename[256];
   /* size of the external stream */
   uint32_t ext_stream_size;
   /* offset in the external stream */
