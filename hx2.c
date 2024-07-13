@@ -82,6 +82,7 @@ static enum hx_class hx_class_from_string(const char* name) {
   if (!strncmp(name, "XBox", 4)) name += 4;
   if (!strncmp(name, "EventResData", 12)) return HX_CLASS_EVENT_RESOURCE_DATA;
   if (!strncmp(name, "WavResData", 10)) return HX_CLASS_WAVE_RESOURCE_DATA;
+  if (!strncmp(name, "SwitchResData", 13)) return HX_CLASS_SWITCH_RESOURCE_DATA;
   if (!strncmp(name, "RandomResData", 13)) return HX_CLASS_RANDOM_RESOURCE_DATA;
   if (!strncmp(name, "ProgramResData", 14)) return HX_CLASS_PROGRAM_RESOURCE_DATA;
   if (!strncmp(name, "WaveFileIdObj", 13)) return HX_CLASS_WAVE_FILE_ID_OBJECT;
@@ -235,6 +236,26 @@ static int hx_wave_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   
   entry->data = data;
   return 1;
+}
+
+#pragma mark - Class: SwitchResData
+
+static int hx_switch_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
+  hx_switch_resource_data_t *data = hx_entry_select();
+  hx_stream_rw32(&hx->stream, &data->flag);
+  hx_stream_rw32(&hx->stream, &data->unknown);
+  hx_stream_rw32(&hx->stream, &data->unknown2);
+  hx_stream_rw32(&hx->stream, &data->start_index);
+  hx_stream_rw32(&hx->stream, &data->num_links);
+  
+  if (hx->stream.mode == HX_STREAM_MODE_READ) {
+    data->links = malloc(sizeof(hx_switch_resource_data_t) * data->num_links);
+  }
+  
+  for (unsigned int i = 0; i < data->num_links; i++) {
+    hx_stream_rw32(&hx->stream, &data->links[i].case_index);
+    hx_stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
+  }
 }
 
 #pragma mark - Class: RandomResData
@@ -444,6 +465,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
 static const struct hx_class_table_entry hx_class_table[] = {
   [HX_CLASS_EVENT_RESOURCE_DATA] = {"EventResData", 1, hx_event_resource_data_rw},
   [HX_CLASS_WAVE_RESOURCE_DATA] = {"WavResData", 0, hx_wave_resource_data_rw},
+  [HX_CLASS_SWITCH_RESOURCE_DATA] = {"SwitchResData", 1, hx_switch_resource_data_rw},
   [HX_CLASS_RANDOM_RESOURCE_DATA] = {"RandomResData", 1, hx_random_resource_data_rw},
   [HX_CLASS_PROGRAM_RESOURCE_DATA] = {"ProgramResData", 1, hx_program_resource_data_rw},
   [HX_CLASS_WAVE_FILE_ID_OBJECT] = {"WaveFileIdObj", 0, hx_wave_file_id_obj_rw},

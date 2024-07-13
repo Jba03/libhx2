@@ -39,6 +39,7 @@ enum hx_version {
 enum hx_class {
   HX_CLASS_EVENT_RESOURCE_DATA,
   HX_CLASS_WAVE_RESOURCE_DATA,
+  HX_CLASS_SWITCH_RESOURCE_DATA,
   HX_CLASS_RANDOM_RESOURCE_DATA,
   HX_CLASS_PROGRAM_RESOURCE_DATA,
   HX_CLASS_WAVE_FILE_ID_OBJECT,
@@ -153,6 +154,21 @@ typedef struct hx_random_resource_data {
   /** ResData links */
   hx_random_resource_data_link_t* links;
 } hx_random_resource_data_t;
+
+
+typedef struct hx_switch_resource_data_link {
+  unsigned int case_index;
+  hx_cuuid_t cuuid;
+} hx_switch_resource_data_link_t;
+
+typedef struct hx_switch_resource_data {
+  unsigned int flag;
+  unsigned int unknown;
+  unsigned int unknown2;
+  unsigned int start_index;
+  unsigned int num_links;
+  struct hx_switch_resource_data_link* links;
+} hx_switch_resource_data_t;
 
 typedef struct hx_id_object_pointer {
   unsigned int id;
