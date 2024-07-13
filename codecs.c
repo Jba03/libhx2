@@ -20,6 +20,7 @@ struct ngc_dsp_adpcm_channel {
   signed short coefficient[16];
   signed short yn1, yn2, loop_yn1, loop_yn2;
   unsigned short gain, ps, loop_ps;
+  unsigned int hst1, hst2;
 };
 
 static unsigned int ngc_dsp_pcm_size(unsigned int sample_count) {
@@ -59,22 +60,36 @@ int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   
   short* dst = out->data;
   char* src = stream.buf + stream.pos;
-  for (int i = 0; i < ((total_samples + NGC_DSP_SAMPLES_PER_FRAME - 1) / NGC_DSP_SAMPLES_PER_FRAME); i++) {
+  int num_frames = ((total_samples + NGC_DSP_SAMPLES_PER_FRAME - 1) / NGC_DSP_SAMPLES_PER_FRAME);
+  
+  for (int i = 0; i < num_frames; i++) {
     for (int c = 0; c < out->num_channels; c++) {
       struct ngc_dsp_adpcm_channel *adpcm = channels + c;
-      const signed int predictor = (*src >> 4) & 0xF, scale = 1 << (*src++ & 0xF);
-      const signed short c1 = adpcm->coefficient[predictor * 2 + 0], c2 = adpcm->coefficient[predictor * 2 + 1];
-      const signed int count = (adpcm->remaining > NGC_DSP_SAMPLES_PER_FRAME) ? NGC_DSP_SAMPLES_PER_FRAME : adpcm->remaining;
-      for (int s = 0; s < count; s++, adpcm->remaining -= count) {
+      const signed char ps = *src++;
+      const signed int predictor = (ps >> 4) & 0xF;
+      const signed int scale = 1 << (ps & 0xF);
+      const signed short c1 = adpcm->coefficient[predictor * 2 + 0];
+      const signed short c2 = adpcm->coefficient[predictor * 2 + 1];
+      
+      signed int hst1 = adpcm->hst1;
+      signed int hst2 = adpcm->hst2;
+      signed int count = (adpcm->remaining > NGC_DSP_SAMPLES_PER_FRAME) ? NGC_DSP_SAMPLES_PER_FRAME : adpcm->remaining;
+      
+      for (int s = 0; s < count; s++) {
         int sample = (s % 2) == 0 ? ((*src >> 4) & 0xF) : (*src++ & 0xF);
         sample = sample >= 8 ? sample - 16 : sample;
-        sample = (((scale * sample) << 11) + 1024 + (c1*adpcm->yn1 + c2*adpcm->yn2)) >> 11;
+        sample = (((scale * sample) << 11) + 1024 + (c1*hst1 + c2*hst2)) >> 11;
         if (sample<INT16_MIN) sample=INT16_MIN;
         if (sample>INT16_MAX) sample=INT16_MAX;
-        adpcm->yn2 = adpcm->yn1;
-        dst[s * out->num_channels + c] = adpcm->yn1 = sample;
+        hst2 = hst1;
+        dst[s * out->num_channels + c] = hst1 = sample;
       }
+          
+      adpcm->hst1 = hst1;
+      adpcm->hst2 = hst2;
+      adpcm->remaining -= count;
     }
+    
     dst += NGC_DSP_SAMPLES_PER_FRAME * out->num_channels;
   }
   
