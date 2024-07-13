@@ -23,7 +23,7 @@ struct ngc_dsp_adpcm_channel {
   unsigned int hst1, hst2;
 };
 
-static unsigned int ngc_dsp_pcm_size(unsigned int sample_count) {
+unsigned int ngc_dsp_pcm_size(unsigned int sample_count) {
   unsigned int frames = sample_count / NGC_DSP_SAMPLES_PER_FRAME;
   if (sample_count % NGC_DSP_SAMPLES_PER_FRAME) frames++;
   return frames * NGC_DSP_SAMPLES_PER_FRAME * sizeof(short);

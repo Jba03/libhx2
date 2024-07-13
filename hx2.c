@@ -29,8 +29,11 @@ struct hx {
   hx_entry_t* entries;
   
   hx_stream_t stream;
+  
+  /* callbacks + userdata */
   hx_read_callback_t read_cb;
   hx_write_callback_t write_cb;
+  void* userdata;
 };
 
 struct hx_version_table_entry {
@@ -58,12 +61,12 @@ static const struct hx_version_table_entry hx_version_table[] = {
   [HX_VERSION_HX3] = {"hx3", "PS3", HX_LITTLE_ENDIAN, 0},
 };
 
-static const char* hx_codec_name(const enum hx_codec c) {
+const char* hx_codec_name(enum hx_codec c) {
   switch (c) {
-    case HX_CODEC_PCM: return "pcm-s16le";
+    case HX_CODEC_PCM: return "pcm";
     case HX_CODEC_UBI: return "ubi";
     case HX_CODEC_PSX: return "psx";
-    case HX_CODEC_NGC_DSP: return "ngc-dsp-adpcm-s16le";
+    case HX_CODEC_NGC_DSP: return "dsp-adpcm";
     case HX_CODEC_XIMA:return "xima";
     case HX_CODEC_MP3: return "mp3";
     default: return "invalid";
@@ -85,10 +88,11 @@ static enum hx_class hx_class_from_string(const char* name) {
   return HX_CLASS_INVALID;
 }
 
-static void hx_class_to_string(hx_t *hx, enum hx_class class, char *out, unsigned int *out_sz) {
+void hx_class_to_string(hx_t *hx, enum hx_class class, char *out, unsigned int *out_sz) {
   const struct hx_version_table_entry v = hx_version_table[hx->version];
   const struct hx_class_table_entry c = hx_class_table[class];
-  *out_sz += sprintf(out, "C%s%s", c.crossversion ? "" : v.platform,  c.name);
+  int q = sprintf(out, "C%s%s", c.crossversion ? "" : v.platform,  c.name);
+  if (out_sz) *out_sz += q;
 }
 
 void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count) {
@@ -112,7 +116,7 @@ static int hx_error(hx_t *hx, const char* format, ...) {
   return 0;
 }
 
-#pragma mark - Wave writer
+#pragma mark - Audio stream
 
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename) {
 //  if (s->codec != HX_CODEC_PCM)
@@ -130,8 +134,21 @@ int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filena
   hx_stream_t wave_stream = hx_stream_alloc(s->size + sizeof(header), HX_STREAM_MODE_WRITE, HX_LITTLE_ENDIAN);
   waveformat_rw(&wave_stream, &header, s->data);
   size_t sz = wave_stream.size;
-  hx->write_cb(filename, wave_stream.buf, 0, &sz);
+  hx->write_cb(filename, wave_stream.buf, 0, &sz, hx->userdata);
   hx_stream_dealloc(&wave_stream);
+  
+  return 1;
+}
+
+unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
+  switch (s->codec) {
+    case HX_CODEC_PCM:
+      return s->size;
+    case HX_CODEC_NGC_DSP:
+      return ngc_dsp_pcm_size(HX_BYTESWAP32(*(unsigned*)s->data));
+    default:
+      return 0;
+  }
 }
 
 #define hx_entry_select() (hx->stream.mode == HX_STREAM_MODE_WRITE ? entry->data : malloc(sizeof(*data)))
@@ -154,7 +171,7 @@ static int hx_event_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   hx_stream_rwfloat(s, data->f_param + 2);
   hx_stream_rwfloat(s, data->f_param + 3);
   
-  printf("EventResData @ 0x%X (%d, %s, link1 = %016llX)\n", s->pos, data->type, data->name, data->link_cuuid);
+  //printf("EventResData @ 0x%X (%d, %s, link1 = %016llX)\n", s->pos, data->type, data->name, data->link_cuuid);
   entry->data = data;
   
   return 1;
@@ -200,20 +217,20 @@ static int hx_wave_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   // 18 = 1
   // TODO: Figure out the rest of the flags
   if (data->res_data.flags & HX_WAVRESDATA_FLAG_MULTIPLE) {
-    printf("offset: 0x%X\n", hx->stream.pos);
+    //printf("offset: 0x%X\n", hx->stream.pos);
     /* default cuuid should be zero on GC */
     if (hx->version == HX_VERSION_HXG) assert(data->default_cuuid == 0);
     hx_stream_rw32(&hx->stream, &data->num_links);
     if (hx->stream.mode == HX_STREAM_MODE_READ) data->links = malloc(sizeof(struct hx_wav_resource_data_link) * data->num_links);
   }
   
-  printf("WavResData @ 0x%X (flags = %d, sz = %d, flags = %X, default = %016llX numLinks = %d)\n", hx->stream.pos, data->res_data.flags, data->res_data.size, data->res_data.flags, data->default_cuuid, data->num_links);
+  //printf("WavResData @ 0x%X (flags = %d, sz = %d, flags = %X, default = %016llX numLinks = %d)\n", hx->stream.pos, data->res_data.flags, data->res_data.size, data->res_data.flags, data->default_cuuid, data->num_links);
   
   for (int i = 0; i < data->num_links; i++) {
     hx_stream_rw32(&hx->stream, &data->links[i].language);
     hx_stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
     unsigned int language_code = HX_BYTESWAP32(data->links[i].language);
-    printf("\tlink[%d]: (language = %.2s, cuuid = %016llX)\n", i, (char*)&language_code, data->links[i].cuuid);
+    //printf("\tlink[%d]: (language = %.2s, cuuid = %016llX)\n", i, (char*)&language_code, data->links[i].cuuid);
   }
   
   entry->data = data;
@@ -231,7 +248,7 @@ static int hx_random_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   hx_stream_rwfloat(s, &data->throw_probability);
   hx_stream_rw32(s, &data->num_links);
   
-  printf("RandomResData @ 0x%X (flags = %d, off = %f, throwProbability = %f, numLinks = %d)\n", s->pos, data->flags, data->offset, data->throw_probability, data->num_links);
+  //printf("RandomResData @ 0x%X (flags = %d, off = %f, throwProbability = %f, numLinks = %d)\n", s->pos, data->flags, data->offset, data->throw_probability, data->num_links);
   
   if (s->mode == HX_STREAM_MODE_READ) {
     data->links = malloc(sizeof(struct hx_random_resource_data_link) * data->num_links);
@@ -240,7 +257,7 @@ static int hx_random_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   for (unsigned i = 0; i < data->num_links; i++) {
     hx_stream_rwfloat(s, &data->links[i].probability);
     hx_stream_rwcuuid(s, &data->links[i].cuuid);
-    printf("\tlink[%d]: (probability = %f, cuuid = %016llX)\n", i, data->links[i].probability, data->links[i].cuuid);
+    //printf("\tlink[%d]: (probability = %f, cuuid = %016llX)\n", i, data->links[i].probability, data->links[i].cuuid);
   }
   
   entry->data = data;
@@ -301,7 +318,7 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
 //  hx_stream_rw32(s, &data->program_length);
   //hx_stream_rw32(s, &data->unk1);
   
-  printf("ProgramResData @ 0x%X (type = %X, programLength = %X, unk3 = %d, unk4 = %d)\n", s->pos, data->type, data->program_length, data->unk3, data->unk4);
+  //printf("ProgramResData @ 0x%X (type = %X, programLength = %X, unk3 = %d, unk4 = %d)\n", s->pos, data->type, data->program_length, data->unk3, data->unk4);
   
   
 //  unsigned int type;
@@ -343,7 +360,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
   hx_wave_file_id_object_t *data = entry->data = hx_entry_select();
   hx_id_obj_pointer_rw(hx, &data->id_obj);
   
-  printf("WaveFileIdObj @ 0x%X (id = %d, unk = %f, mode = %X)\n", s->pos, data->id_obj.id, data->id_obj.unknown, data->id_obj.flags);
+  //printf("WaveFileIdObj @ 0x%X (id = %d, unk = %f, mode = %X)\n", s->pos, data->id_obj.id, data->id_obj.unknown, data->id_obj.flags);
   
   if (data->id_obj.flags & HX_ID_OBJECT_POINTER_FLAG_EXTERNAL) {
     unsigned int name_length = strlen(data->ext_stream_filename);
@@ -367,7 +384,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
   data->audio_stream = audio_stream;
     
   
-  printf("codec: 0x%X\n", data->wave_header.codec);
+  //printf("codec: 0x%X\n", data->wave_header.codec);
   
   if (data->id_obj.flags & HX_ID_OBJECT_POINTER_FLAG_EXTERNAL) {
     /* data code must be "datx" */
@@ -385,7 +402,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
         sprintf(data->ext_stream_filename, "%s", data->ext_stream_filename + 2);
       }
       size_t sz = data->ext_stream_size;
-      if (!(audio_stream->data = (int16_t*)hx->read_cb(data->ext_stream_filename, data->ext_stream_offset, &sz))) {
+      if (!(audio_stream->data = (int16_t*)hx->read_cb(data->ext_stream_filename, data->ext_stream_offset, &sz, hx->userdata))) {
         hx_error(hx, "failed to read external audio stream data (%s @ 0x%X)", data->ext_stream_filename, data->ext_stream_offset);
         return 0;
       }
@@ -509,6 +526,11 @@ static int hx_read(hx_t *hx) {
     entry->num_languages = 0;
     entry->data = NULL;
     
+    if (entry->class == HX_CLASS_INVALID) {
+      fprintf(stderr, "found unknown class \"%s\": report this!\n", classname);
+      continue;
+    }
+    
     unsigned int zero;
     hx_stream_rwcuuid(s, &entry->cuuid);
     hx_stream_rw32(s, &entry->file_offset);
@@ -534,14 +556,14 @@ static int hx_read(hx_t *hx) {
       }
     }
 
-    printf("[%d] %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry->cuuid);
+    //printf("[%d] %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry->cuuid);
     
     unsigned int pos = s->pos;
     hx_stream_seek(s, entry->file_offset);
     hx_entry_rw(hx, entry);
     hx_stream_seek(s, pos);
     
-    printf("\n\n");
+    //printf("\n\n");
   }
   
   return 1;
@@ -569,7 +591,7 @@ static void hx_write(hx_t *hx) {
     unsigned int classname_length = 0;
     hx_class_to_string(hx, entry.class, classname, &classname_length);
     
-    printf("Writing [%d]: %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry.cuuid);
+    //printf("Writing [%d]: %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry.cuuid);
     if (!hx_entry_rw(hx, &entry)) {
       return hx_error(hx, "failed to write entry %016llX", entry.cuuid);
     }
@@ -616,16 +638,16 @@ static void hx_write(hx_t *hx) {
 
 #pragma mark - HX
 
-hx_t *hx_context_alloc(int options) {
+hx_t *hx_context_alloc() {
   hx_t *hx = malloc(sizeof(*hx));
-  hx->options = options;
   hx->version = HX_VERSION_INVALID;
   return hx;
 }
 
-void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write) {
+void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, void* userdata) {
   hx->read_cb = read;
   hx->write_cb = write;
+  hx->userdata = userdata;
 }
 
 int hx_context_open(hx_t *hx, const char* filename) {
@@ -646,7 +668,7 @@ int hx_context_open(hx_t *hx, const char* filename) {
   }
   
   size_t size = SIZE_MAX;
-  unsigned char* data = hx->read_cb(filename, 0, &size);
+  unsigned char* data = hx->read_cb(filename, 0, &size, hx->userdata);
   if (!data) {
     hx_error(hx, "failed to read %s", filename);
     return 0;
@@ -673,7 +695,7 @@ void hx_context_write(hx_t *hx, const char* filename) {
   hx_write(hx);
 
   size_t size = hx->stream.size;
-  hx->write_cb(filename, hx->stream.buf, 0, &size);
+  hx->write_cb(filename, hx->stream.buf, 0, &size, hx->userdata);
   hx_stream_dealloc(&hx->stream);
   hx->stream = ps;
 }

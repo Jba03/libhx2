@@ -17,8 +17,8 @@ typedef struct hx_entry hx_entry_t;
 typedef struct hx_audio_stream hx_audio_stream_t;
 typedef unsigned long long hx_cuuid_t;
 
-typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size);
-typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size);
+typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
+typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
 
 #define HX_LANGUAGE_DE 0x20206564
 #define HX_LANGUAGE_EN 0x20206E65
@@ -49,10 +49,14 @@ enum hx_codec {
   HX_CODEC_PCM  = 0x01, /* PCM */
   HX_CODEC_UBI  = 0x02, /* UBI ADPCM */
   HX_CODEC_PSX  = 0x03, /* PS ADPCM */
-  HX_CODEC_NGC_DSP  = 0x04, /* GC 4-bit ADPCM */
+  HX_CODEC_NGC_DSP = 0x04, /* GC 4-bit ADPCM */
   HX_CODEC_XIMA = 0x05, /* MS IMA ADPCM */
   HX_CODEC_MP3  = 0x55,
 };
+
+/** hx_codec_name:
+ * Get the name of codec `c`. */
+const char* hx_codec_name(enum hx_codec c);
 
 struct hx_audio_stream {
   enum hx_codec codec;
@@ -72,9 +76,15 @@ int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in_dsp, hx_audio_stream_t *out_p
  * Encode PCM samples into NGC-DSP ADPCM data. */
 int ngc_dsp_encode(hx_t *hx, hx_audio_stream_t *in_pcm, hx_audio_stream_t *out_dsp);
 
+/** ngc_dsp_pcm_size:
+ * Get the size of decoded DSP ADPCM data. */
+unsigned int ngc_dsp_pcm_size(unsigned int sample_count);
+
 /** hx_audio_stream_write_wav:
  * Write audio stream to a .wav file */
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename);
+
+unsigned int hx_audio_stream_size(hx_audio_stream_t *s);
 
 #pragma mark - Class -
 
@@ -174,9 +184,6 @@ typedef struct hx_wave_file_id_object {
 
 #pragma mark - Context
 
-/* ctx options */
-#define HX_OPT_MEMORY_LESS  (1 << 0) /* don't load resource files into memory */
-
 typedef struct hx_entry_language_link {
   unsigned int code;
   unsigned int unknown;
@@ -210,11 +217,11 @@ struct hx_entry {
 
 /** hx_context_alloc:
  * Allocate an empty context. */
-hx_t *hx_context_alloc(int options);
+hx_t *hx_context_alloc();
 
 /** hx_context_callback:
- * Set the read and write callbacks for the specified context. */
-void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write);
+ * Set the read and write callbacks for the specified context, with an optional userdata pointer. */
+void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, void* userdata);
 
 /** hx_context_open:
  * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`. */
@@ -231,6 +238,10 @@ void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count);
 /** hx_context_entry_lookup:
  * Find entry by cuuid */
 hx_entry_t *hx_context_entry_lookup(hx_t *hx, hx_cuuid_t cuuid);
+
+/** hx_class_to_string:
+ * Get the name of a class `c` */
+void hx_class_to_string(hx_t *hx, enum hx_class c, char *out, unsigned int *out_sz);
 
 /** hx_context_write:
  * Write context to memory. */
