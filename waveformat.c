@@ -1,11 +1,11 @@
 /*****************************************************************
- # wave.c: RIFF/WAVE format
+ # waveformat.c: RIFF/WAVE format
  *****************************************************************
  * libhx2: library for reading and writing ubi hxaudio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 
-#include "wave.h"
+#include "waveformat.h"
 
 void waveformat_default_header(struct wave_header *header) {
   header->riff_id = WAVE_RIFF_CHUNK_ID;

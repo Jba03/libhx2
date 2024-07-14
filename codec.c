@@ -1,5 +1,5 @@
 /*****************************************************************
- # codecs.c: Encoders/Decoders
+ # codec.c: Encoders/Decoders
  *****************************************************************
  * libhx2: library for reading and writing ubi hxaudio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>

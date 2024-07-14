@@ -7,7 +7,7 @@
 
 #include "hx2.h"
 #include "stream.h"
-#include "wave.h"
+#include "waveformat.h"
 
 #include <stdio.h>
 #include <stdlib.h>

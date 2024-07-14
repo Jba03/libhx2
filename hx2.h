@@ -10,7 +10,7 @@
 
 #include <stddef.h>
 
-#include "wave.h"
+#include "waveformat.h"
 
 typedef struct hx hx_t;
 typedef struct hx_entry hx_entry_t;
