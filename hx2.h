@@ -20,6 +20,8 @@ typedef unsigned long long hx_cuuid_t;
 typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
 typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
 
+#define HX_STRING_MAX_LENGTH  256
+
 #define HX_LANGUAGE_DE 0x20206564
 #define HX_LANGUAGE_EN 0x20206E65
 #define HX_LANGUAGE_ES 0x20207365
@@ -90,7 +92,7 @@ unsigned int hx_audio_stream_size(hx_audio_stream_t *s);
 #pragma mark - Class -
 
 typedef struct hx_event_resource_data {
-  char name[256];
+  char name[HX_STRING_MAX_LENGTH];
   unsigned int type;
   unsigned int flags;
   hx_cuuid_t link_cuuid;
@@ -180,18 +182,16 @@ typedef struct hx_id_object_pointer {
 
 typedef struct hx_wave_file_id_object {
   struct hx_id_object_pointer id_obj;
-  struct wave_header wave_header;
+  struct waveformat_header wave_header;
   
-  unsigned int num_samples;
-  
-  /* filename of the external stream */
-  char ext_stream_filename[256];
-  /* size of the external stream */
+  /** Filename of the external stream */
+  char ext_stream_filename[HX_STRING_MAX_LENGTH];
+  /** Size of the external stream */
   unsigned int ext_stream_size;
-  /* offset in the external stream */
+  /** Offset in the external stream */
   unsigned int ext_stream_offset;
   
-  /* the audio stream */
+  /** Audio stream */
   hx_audio_stream_t *audio_stream;
   
   void *extra_wave_data;
@@ -266,9 +266,5 @@ void hx_context_write(hx_t *hx, const char* filename);
 /** hx_context_free:
  * Deallocate a context. */
 void hx_context_free(hx_t **hx);
-
-/** hx_error_string:
- * Get the current error message. */
-const char* hx_error_string(hx_t *hx);
 
 #endif /* hx2_h */

@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
           float sec = ((float)sz / data->wave_header.bytes_per_second) * data->wave_header.num_channels;
           int min = (int)(sec / 60) % 60;
           printf(" Duration: " CYAN BOLD "%02d:%02d:%06.3f\n" RESET, 0, min, sec);
-          printf(" Format: " "%s" RESET "\n", hx_codec_name(data->wave_header.codec));
+          printf(" Format: " "%s" RESET "\n", hx_codec_name(data->wave_header.format));
           break;
         }
           

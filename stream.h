@@ -8,11 +8,10 @@
 #ifndef stream_h
 #define stream_h
 
-typedef unsigned int hx_size_t;
-
 #define HX_BIG_ENDIAN 1
 #define HX_LITTLE_ENDIAN 0
 #define HX_NATIVE_ENDIAN (!*(unsigned char*)&(unsigned short){1})
+
 #define HX_BYTESWAP16(data) ((unsigned short)((unsigned short)(data) << 8 | (unsigned short)(data) >> 8))
 #define HX_BYTESWAP32(data) ((unsigned int)(HX_BYTESWAP16((unsigned int)(data)) << 16 | HX_BYTESWAP16((unsigned int)(data) >> 16)))
 

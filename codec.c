@@ -79,8 +79,8 @@ int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
         int sample = (s % 2) == 0 ? ((*src >> 4) & 0xF) : (*src++ & 0xF);
         sample = sample >= 8 ? sample - 16 : sample;
         sample = (((scale * sample) << 11) + 1024 + (c1*hst1 + c2*hst2)) >> 11;
-        if (sample<INT16_MIN) sample=INT16_MIN;
-        if (sample>INT16_MAX) sample=INT16_MAX;
+        if (sample < INT16_MIN) sample = INT16_MIN;
+        if (sample > INT16_MAX) sample = INT16_MAX;
         hst2 = hst1;
         dst[s * out->num_channels + c] = hst1 = sample;
       }
