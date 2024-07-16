@@ -70,9 +70,9 @@ static int extract_entry(hx_t *hx, hx_entry_t *entry) {
     if (obj->id_obj.flags & (1 << 0)) sprintf(name, "Output/EXT-%016llX.wav", entry->cuuid);
     else sprintf(name, "Output/%016llX.wav", entry->cuuid);
     
-    if (audio->codec == HX_CODEC_NGC_DSP) {
+    if (audio->codec == HX_CODEC_DSP) {
       hx_audio_stream_t out;
-      ngc_dsp_decode(hx, audio, &out);
+      dsp_decode(hx, audio, &out);
       if (hx_audio_stream_write_wav(hx, &out, name)) return 1;
     } else if (audio->codec == HX_CODEC_PCM) {
       

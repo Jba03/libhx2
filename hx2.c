@@ -43,7 +43,7 @@ static struct hx_version_table_entry {
   [HX_VERSION_HXD] = {"hxd", "PC", HX_BIG_ENDIAN, 0},
   [HX_VERSION_HXC] = {"hxc", "PC", HX_LITTLE_ENDIAN, HX_CODEC_UBI | HX_CODEC_PCM},
   [HX_VERSION_HX2] = {"hx2", "PS2", HX_LITTLE_ENDIAN, HX_CODEC_PSX},
-  [HX_VERSION_HXG] = {"hxg", "GC", HX_BIG_ENDIAN, HX_CODEC_NGC_DSP},
+  [HX_VERSION_HXG] = {"hxg", "GC", HX_BIG_ENDIAN, HX_CODEC_DSP},
   [HX_VERSION_HXX] = {"hxx", "XBox", HX_BIG_ENDIAN, 0},
   [HX_VERSION_HX3] = {"hx3", "PS3", HX_LITTLE_ENDIAN, 0},
 };
@@ -53,7 +53,7 @@ const char* hx_codec_name(enum hx_codec c) {
     case HX_CODEC_PCM: return "pcm";
     case HX_CODEC_UBI: return "ubi";
     case HX_CODEC_PSX: return "psx";
-    case HX_CODEC_NGC_DSP: return "dsp-adpcm";
+    case HX_CODEC_DSP: return "dsp-adpcm";
     case HX_CODEC_XIMA:return "xima";
     case HX_CODEC_MP3: return "mp3";
     default: return "invalid-codec";
@@ -129,8 +129,8 @@ unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
   switch (s->codec) {
     case HX_CODEC_PCM:
       return s->size;
-    case HX_CODEC_NGC_DSP:
-      return ngc_dsp_pcm_size(HX_BYTESWAP32(*(unsigned*)s->data));
+    case HX_CODEC_DSP:
+      return dsp_pcm_size(HX_BYTESWAP32(*(unsigned*)s->data));
     default:
       return 0;
   }

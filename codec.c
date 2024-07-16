@@ -11,11 +11,11 @@
 #include <string.h>
 #include <assert.h>
 
-#pragma mark - NGC-DSP ADPCM
+#pragma mark - DSP ADPCM
 
-#define NGC_DSP_SAMPLES_PER_FRAME 14
+#define DSP_SAMPLES_PER_FRAME 14
 
-struct ngc_dsp_adpcm_channel {
+struct dsp_adpcm_channel {
   unsigned int num_samples, remaining;
   signed short coefficient[16];
   signed short yn1, yn2, loop_yn1, loop_yn2;
@@ -23,19 +23,19 @@ struct ngc_dsp_adpcm_channel {
   unsigned int hst1, hst2;
 };
 
-unsigned int ngc_dsp_pcm_size(unsigned int sample_count) {
-  unsigned int frames = sample_count / NGC_DSP_SAMPLES_PER_FRAME;
-  if (sample_count % NGC_DSP_SAMPLES_PER_FRAME) frames++;
-  return frames * NGC_DSP_SAMPLES_PER_FRAME * sizeof(short);
+unsigned int dsp_pcm_size(unsigned int sample_count) {
+  unsigned int frames = sample_count / DSP_SAMPLES_PER_FRAME;
+  if (sample_count % DSP_SAMPLES_PER_FRAME) frames++;
+  return frames * DSP_SAMPLES_PER_FRAME * sizeof(short);
 }
 
-int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
+int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   hx_stream_t stream = hx_stream_create(in->data, in->size, HX_STREAM_MODE_READ, in->endianness);
   
   unsigned int total_samples = 0;
-  struct ngc_dsp_adpcm_channel channels[in->num_channels];
+  struct dsp_adpcm_channel channels[in->num_channels];
   for (int c = 0; c < in->num_channels; c++) {
-    struct ngc_dsp_adpcm_channel* channel = &channels[c];
+    struct dsp_adpcm_channel* channel = &channels[c];
     hx_stream_rw32(&stream, &channel->num_samples);
     hx_stream_advance(&stream, 24);
     for (int i=0;i<16;i++) hx_stream_rw16(&stream, &channel->coefficient[i]);
@@ -55,16 +55,16 @@ int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   out->codec = HX_CODEC_PCM;
   out->num_channels = in->num_channels;
   out->num_samples = total_samples;
-  out->size = ngc_dsp_pcm_size(total_samples);
+  out->size = dsp_pcm_size(total_samples);
   out->data = malloc(out->size);
   
   short* dst = out->data;
   char* src = stream.buf + stream.pos;
-  int num_frames = ((total_samples + NGC_DSP_SAMPLES_PER_FRAME - 1) / NGC_DSP_SAMPLES_PER_FRAME);
+  int num_frames = ((total_samples + DSP_SAMPLES_PER_FRAME - 1) / DSP_SAMPLES_PER_FRAME);
   
   for (int i = 0; i < num_frames; i++) {
     for (int c = 0; c < out->num_channels; c++) {
-      struct ngc_dsp_adpcm_channel *adpcm = channels + c;
+      struct dsp_adpcm_channel *adpcm = channels + c;
       const signed char ps = *src++;
       const signed int predictor = (ps >> 4) & 0xF;
       const signed int scale = 1 << (ps & 0xF);
@@ -73,7 +73,7 @@ int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
       
       signed int hst1 = adpcm->hst1;
       signed int hst2 = adpcm->hst2;
-      signed int count = (adpcm->remaining > NGC_DSP_SAMPLES_PER_FRAME) ? NGC_DSP_SAMPLES_PER_FRAME : adpcm->remaining;
+      signed int count = (adpcm->remaining > DSP_SAMPLES_PER_FRAME) ? DSP_SAMPLES_PER_FRAME : adpcm->remaining;
       
       for (int s = 0; s < count; s++) {
         int sample = (s % 2) == 0 ? ((*src >> 4) & 0xF) : (*src++ & 0xF);
@@ -90,7 +90,7 @@ int ngc_dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
       adpcm->remaining -= count;
     }
     
-    dst += NGC_DSP_SAMPLES_PER_FRAME * out->num_channels;
+    dst += DSP_SAMPLES_PER_FRAME * out->num_channels;
   }
   
   return 1;
