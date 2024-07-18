@@ -9,14 +9,10 @@
 #define hx2_h
 
 #include <stddef.h>
-
 #include "waveformat.h"
 
 typedef struct hx hx_t;
-typedef struct hx_entry hx_entry_t;
-typedef struct hx_audio_stream hx_audio_stream_t;
 typedef unsigned long long hx_cuuid_t;
-
 typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
 typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
 
@@ -61,15 +57,19 @@ enum hx_codec {
  * Get the name of codec `c`. */
 const char* hx_codec_name(enum hx_codec c);
 
-struct hx_audio_stream {
-  enum hx_codec codec;
-  signed short* data;
-  unsigned int size;
-  signed char num_channels;
-  signed char endianness;
+typedef struct hx_audio_stream_info {
+  unsigned char num_channels;
+  unsigned char endianness;
   unsigned int sample_rate;
   unsigned int num_samples;
-};
+  unsigned int codec;
+} hx_audio_stream_info_t;
+
+typedef struct hx_audio_stream {
+  signed short* data;
+  unsigned int size;
+  hx_audio_stream_info_t info;
+} hx_audio_stream_t;
 
 /** dsp_decode:
  * Decode DSP ADPCM data into PCM samples. */
@@ -206,7 +206,7 @@ typedef struct hx_entry_language_link {
   hx_cuuid_t cuuid;
 } hx_entry_language_link_t;
 
-struct hx_entry {
+typedef struct hx_entry {
   /** Unique identifier */
   hx_cuuid_t cuuid;
   /** The class of the entry object */
@@ -229,7 +229,7 @@ struct hx_entry {
   /** Entry size in bytes */
   unsigned int file_size;
   unsigned int tmp_file_size;
-};
+} hx_entry_t;
 
 /** hx_context_alloc:
  * Allocate an empty context. */

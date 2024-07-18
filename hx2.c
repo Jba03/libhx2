@@ -109,10 +109,10 @@ int hx_error(hx_t *hx, const char* format, ...) {
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename) {
   struct waveformat_header header;
   waveformat_default_header(&header);
-  header.sample_rate = s->sample_rate;
-  header.num_channels = s->num_channels;
+  header.sample_rate = s->info.sample_rate;
+  header.num_channels = s->info.num_channels;
   header.bits_per_sample = 16;
-  header.bytes_per_second = s->num_channels * s->sample_rate * header.bits_per_sample / 8;
+  header.bytes_per_second = s->info.num_channels * s->info.sample_rate * header.bits_per_sample / 8;
   header.block_alignment = header.num_channels * header.bits_per_sample / 8;
   header.subchunk2_size = s->size;
 
@@ -126,7 +126,7 @@ int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filena
 }
 
 unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
-  switch (s->codec) {
+  switch (s->info.codec) {
     case HX_CODEC_PCM:
       return s->size;
     case HX_CODEC_DSP:
@@ -334,11 +334,11 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
   
   hx_audio_stream_t *audio_stream = (s->mode == HX_STREAM_MODE_READ) ? malloc(sizeof(*audio_stream)) : data->audio_stream;
   if (s->mode == HX_STREAM_MODE_READ) {
-    audio_stream->codec = data->wave_header.format;
-    audio_stream->num_channels = data->wave_header.num_channels;
-    audio_stream->endianness = s->endianness;
+    audio_stream->info.codec = data->wave_header.format;
+    audio_stream->info.num_channels = data->wave_header.num_channels;
+    audio_stream->info.endianness = s->endianness;
+    audio_stream->info.sample_rate = data->wave_header.sample_rate;
     audio_stream->size = data->wave_header.subchunk2_size;
-    audio_stream->sample_rate = data->wave_header.sample_rate;
   }
   
   data->audio_stream = audio_stream;
