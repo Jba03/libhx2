@@ -9,10 +9,22 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
+#include <stdio.h>
+
+#include <math.h>
+#include <float.h>
+#include <limits.h>
+
+#define min(a,b) (((a)<(b))?(a):(b))
+#define max(a,b) (((a)>(b))?(a):(b))
+
+int hx_error(hx_t *hx, const char* format, ...);
 
 #pragma mark - DSP ADPCM
 
+#define DSP_HEADER_SIZE 96
+#define DSP_BYTES_PER_FRAME 8
+#define DSP_NIBBLES_PER_FRAME 16
 #define DSP_SAMPLES_PER_FRAME 14
 
 struct dsp_adpcm {
@@ -21,9 +33,7 @@ struct dsp_adpcm {
   unsigned int loop_start, loop_end, ca;
   signed short c[16], gain, ps, hst1, hst2;
   signed short loop_ps, loop_hst1, loop_hst2;
-  /* internal */
-  signed int history1, history2;
-  unsigned int remaining;
+  signed int history1, history2, remaining; /* internal */
 };
 
 static void dsp_adpcm_header_rw(hx_stream_t *s, struct dsp_adpcm *adpcm) {
@@ -46,6 +56,26 @@ static void dsp_adpcm_header_rw(hx_stream_t *s, struct dsp_adpcm *adpcm) {
   hx_stream_advance(s, 11 * 2); /* padding */
 }
 
+static int dsp_nibble_count(int samples) {
+  int frames = samples / DSP_SAMPLES_PER_FRAME;
+  int extra_samples = samples % DSP_SAMPLES_PER_FRAME;
+  int extra_nibbles = extra_samples == 0 ? 0 : extra_samples + 2;
+  return DSP_NIBBLES_PER_FRAME * frames + extra_nibbles;
+}
+
+static int dsp_nibble_address(int sample) {
+  int frames = sample / DSP_SAMPLES_PER_FRAME;
+  int extra_samples = sample % DSP_SAMPLES_PER_FRAME;
+  return DSP_NIBBLES_PER_FRAME * frames + extra_samples + 2;
+}
+
+static int dsp_byte_count(int samples) {
+  int frames = samples / DSP_SAMPLES_PER_FRAME, extra_bytes = 0;
+  int extra_samples = samples % DSP_SAMPLES_PER_FRAME;
+  if (extra_samples != 0) extra_bytes = (extra_samples / 2) + (extra_samples % 2) + 1;
+  return DSP_BYTES_PER_FRAME * frames + extra_bytes;
+}
+
 unsigned int dsp_pcm_size(unsigned int sample_count) {
   unsigned int frames = sample_count / DSP_SAMPLES_PER_FRAME;
   if (sample_count % DSP_SAMPLES_PER_FRAME) frames++;
@@ -53,6 +83,10 @@ unsigned int dsp_pcm_size(unsigned int sample_count) {
 }
 
 int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
+  if (in->codec != HX_CODEC_DSP) {
+    return hx_error(hx, "dsp_decode: input is not dsp (%s)", hx_codec_name(in->codec));
+  }
+  
   hx_stream_t stream = hx_stream_create(in->data, in->size, HX_STREAM_MODE_READ, in->endianness);
   
   unsigned int total_samples = 0;
@@ -92,8 +126,8 @@ int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
         int sample = (s % 2) == 0 ? ((*src >> 4) & 0xF) : (*src++ & 0xF);
         sample = sample >= 8 ? sample - 16 : sample;
         sample = (((scale * sample) << 11) + 1024 + (c1*hst1 + c2*hst2)) >> 11;
-        if (sample < INT16_MIN) sample = INT16_MIN;
-        if (sample > INT16_MAX) sample = INT16_MAX;
+        if (sample < SHRT_MIN) sample = SHRT_MIN;
+        if (sample > SHRT_MAX) sample = SHRT_MAX;
         hst2 = hst1;
         dst[s * out->num_channels + c] = hst1 = sample;
       }
@@ -109,6 +143,104 @@ int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   return 1;
 }
 
-int ngc_dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
+static void dsp_frame_encode(signed short pcm[16], unsigned int num_samples, signed char adpcm[DSP_BYTES_PER_FRAME]) {
+  int inSamples[16] = { pcm[0], pcm[1] };
+  int outSamples[14], scale, v1, v2, v3, index, distance;
+  double acc;
+  
+  for (int s = 0; s < num_samples; s++) {
+    inSamples[s + 2] = v1 = ((pcm[s] * 0.0f) + (pcm[s + 1] * 0.0f)) / 2048;
+    v2 = pcm[s + 2] - v1;
+    v3 = (v2 >= SHRT_MAX) ? SHRT_MAX : (v2 <= SHRT_MIN) ? SHRT_MIN : v2;
+    if (abs(v3) > abs(distance)) distance = v3;
+  }
+  
+  for (scale = 0; (scale <= 12) && ((distance > 7) || (distance < -8)); scale++) distance /= 2;
+  scale = (scale <= 1) ? -1 : scale - 2;
+
+  do {
+    scale++;
+    acc = index = 0;
+    for (int s = 0; s < num_samples; s++) {
+      v1 = ((inSamples[s] * 0.0f) + (inSamples[s + 1] * 0.0f));
+      v2 = (pcm[s + 2] << 11) - v1;
+      v3 = (v2 > 0) ? (int)((double)v2 / (1 << scale) / 2048 + 0.5f) : (int)((double)v2 / (1 << scale) / 2048 - 0.5f);
+      
+      if (v3<-8) {
+        if (index < (v3=-8-v3)) index = v3; v3 = -8;
+      } else if (v3 > 7) {
+        if (index < (v3-=7)) index = v3; v3 = 7;
+      }
+      
+      outSamples[s] = v3;
+      v1 = (v1 + ((v3 * (1 << scale)) << 11) + 1024) >> 11;
+      inSamples[s+2] = v2 = (v1 >= SHRT_MAX) ? SHRT_MAX : (v1 <= SHRT_MIN) ? SHRT_MIN : v1;
+      v3 = pcm[s+2] - v2;
+      acc += v3 * (double)v3;
+    }
+    for (int x = index + 8; x > 256; x >>= 1) if (++scale >= 12) scale = 11;
+  } while (scale < 12 && index > 1);
+  
+  adpcm[0] = scale & 0xF;
+  for (int s = num_samples; s < 14; s++) outSamples[s] = 0;
+  for (int y = 0; y < 7; y++) adpcm[y+1] = (char)((outSamples[y*2]<<4) | (outSamples[y*2+1]&0xF));
+}
+
+int dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
+  if (in->codec != HX_CODEC_PCM) {
+    return hx_error(hx, "dsp_encode failed: input is not pcm (%s)", hx_codec_name(in->codec));
+  }
+  
+  unsigned int num_samples = in->num_samples;
+  unsigned int output_stream_size = num_samples * 2 + out->num_channels * DSP_HEADER_SIZE;
+  unsigned int framecount = (num_samples / DSP_SAMPLES_PER_FRAME) + (num_samples % DSP_SAMPLES_PER_FRAME != 0);
+  
+  out->codec = HX_CODEC_DSP;
+  out->num_samples = in->num_samples;
+  out->num_channels = in->num_channels;
+  out->sample_rate = in->sample_rate;
+  out->endianness = HX_BIG_ENDIAN;
+  
+  hx_stream_t output_stream = hx_stream_alloc(output_stream_size, HX_STREAM_MODE_WRITE, out->endianness);
+  out->data = (signed short*)output_stream.buf;
+  out->size = output_stream_size;
+  
+  hx_stream_seek(&output_stream, out->num_channels * DSP_HEADER_SIZE);
+
+  signed short samples[16];
+  signed short* src = in->data;
+  struct dsp_adpcm header[out->num_channels];
+  
+  for (unsigned int n = 0; n < framecount; n++) {
+    for (unsigned int channel = 0; channel < out->num_channels; channel++) {
+      
+      unsigned int samples_to_process = min(num_samples - n * DSP_SAMPLES_PER_FRAME, DSP_SAMPLES_PER_FRAME);
+      memset(samples + 2, 0, DSP_SAMPLES_PER_FRAME * sizeof(int16_t));
+      
+      for (int s = 0; s < samples_to_process; ++s)
+        samples[s + 2] = src[n * DSP_SAMPLES_PER_FRAME * out->num_channels + (channel + s * out->num_channels)];
+      
+      signed char frame[8];
+      dsp_frame_encode(samples, DSP_SAMPLES_PER_FRAME, frame);
+      
+      if (n == 0) {
+        header[channel].num_samples = out->num_samples;
+        header[channel].num_nibbles = dsp_nibble_count(num_samples);
+        header[channel].sample_rate = in->sample_rate;
+        header[channel].loop_start = dsp_nibble_address(0);
+        header[channel].loop_end = dsp_nibble_address(num_samples - 1);
+        header[channel].ca = dsp_nibble_address(0);
+        header[channel].ps = frame[0];
+        memset(header[channel].c, 0, 16 * sizeof(short));
+      }
+      hx_stream_rw(&output_stream, frame, dsp_byte_count(samples_to_process));
+    }
+  }
+  
+  /* Write headers */
+  hx_stream_seek(&output_stream, 0);
+  for (int i = 0; i < out->num_channels; i++)
+    dsp_adpcm_header_rw(&output_stream, header + i);
+  
   return 0;
 }

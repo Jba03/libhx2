@@ -94,7 +94,7 @@ hx_entry_t *hx_context_entry_lookup(hx_t *hx, unsigned long long cuuid) {
   return NULL;
 }
 
-static int hx_error(hx_t *hx, const char* format, ...) {
+int hx_error(hx_t *hx, const char* format, ...) {
   va_list args;
   va_start(args, format);
   printf("[libhx] ");
