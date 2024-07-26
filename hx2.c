@@ -255,7 +255,7 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   
   char name[256];
   unsigned int length = 0;
-  hx_class_to_string(hx, entry->class, name, &length);
+  hx_class_to_string(hx, entry->i_class, name, &length);
   
   if (s->mode == HX_STREAM_MODE_READ) {
     entry->tmp_file_size = entry->file_size - (4 + length + 8);
@@ -384,7 +384,7 @@ static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
   char classname[256];
   memset(classname, 0, 256);
   unsigned int classname_length;
-  if (hx->stream.mode == HX_STREAM_MODE_WRITE) hx_class_to_string(hx, entry->class, classname, &classname_length);
+  if (hx->stream.mode == HX_STREAM_MODE_WRITE) hx_class_to_string(hx, entry->i_class, classname, &classname_length);
   hx_stream_rw32(&hx->stream, &classname_length);
   
   if (hx->stream.mode == HX_STREAM_MODE_READ) memset(classname, 0, classname_length + 1);
@@ -392,8 +392,8 @@ static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
   
   if (hx->stream.mode == HX_STREAM_MODE_READ) {
     enum hx_class hclass = hx_class_from_string(classname);
-    if (hclass != entry->class) {
-      fprintf(stderr, "[libhx] header class name does not match index class name (%X != %X)\n", entry->class, hclass);
+    if (hclass != entry->i_class) {
+      fprintf(stderr, "[libhx] header class name does not match index class name (%X != %X)\n", entry->i_class, hclass);
       return -1;
     }
   }
@@ -405,8 +405,8 @@ static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
     return -1;
   }
   
-  if (entry->class != HX_CLASS_INVALID) {
-    if (!hx_class_table[entry->class].rw(hx, entry)) return -1;
+  if (entry->i_class != HX_CLASS_INVALID) {
+    if (!hx_class_table[entry->i_class].rw(hx, entry)) return -1;
   }
   
   return (hx->stream.pos - p);
@@ -417,10 +417,10 @@ static void hx_postread(hx_t *hx) {
     /* In hxg, the WavResObj class has no internal name, so
      * derive them from the EventResData entries instead. */
     for (unsigned int i = 0; i < hx->num_entries; i++) {
-      if (hx->entries[i].class == HX_CLASS_EVENT_RESOURCE_DATA) {
+      if (hx->entries[i].i_class == HX_CLASS_EVENT_RESOURCE_DATA) {
         hx_event_resource_data_t *data = hx->entries[i].data;
         hx_entry_t *entry = hx_context_entry_lookup(hx, data->link_cuuid);
-        if (entry->class == HX_CLASS_WAVE_RESOURCE_DATA) {
+        if (entry->i_class == HX_CLASS_WAVE_RESOURCE_DATA) {
           hx_wav_resource_data_t *wavresdata = entry->data;
           strncpy(wavresdata->res_data.name, data->name, HX_STRING_MAX_LENGTH);
         }
@@ -429,7 +429,7 @@ static void hx_postread(hx_t *hx) {
   }
   
   for (unsigned int i = 0; i < hx->num_entries; i++) {
-    if (hx->entries[i].class == HX_CLASS_WAVE_RESOURCE_DATA) {
+    if (hx->entries[i].i_class == HX_CLASS_WAVE_RESOURCE_DATA) {
       hx_wav_resource_data_t *data = hx->entries[i].data;
       for (unsigned int l = 0; l < data->num_links; l++) {
         hx_wav_resource_data_link_t *link = &data->links[l];
@@ -484,12 +484,12 @@ static int hx_read(hx_t *hx) {
     hx_stream_advance(s, classname_length);
     
     hx_entry_t* entry = &hx->entries[hx->num_entries - num_entries - 1];
-    entry->class = hx_class_from_string(classname);
+    entry->i_class = hx_class_from_string(classname);
     entry->num_links = 0;
     entry->num_languages = 0;
     entry->data = NULL;
     
-    if (entry->class == HX_CLASS_INVALID) {
+    if (entry->i_class == HX_CLASS_INVALID) {
       fprintf(stderr, "found unknown class \"%s\": report this!\n", classname);
       continue;
     }
@@ -552,7 +552,7 @@ static void hx_write(hx_t *hx) {
     
     char classname[256];
     unsigned int classname_length = 0;
-    hx_class_to_string(hx, entry.class, classname, &classname_length);
+    hx_class_to_string(hx, entry.i_class, classname, &classname_length);
     
     //printf("Writing [%d]: %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry.cuuid);
     if (!hx_entry_rw(hx, &entry)) {

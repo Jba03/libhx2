@@ -8,6 +8,10 @@
 #ifndef hx2_h
 #define hx2_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include "waveformat.h"
 
@@ -213,7 +217,7 @@ typedef struct hx_entry {
   /** Unique identifier */
   hx_cuuid_t cuuid;
   /** The class of the entry object */
-  enum hx_class class;
+  enum hx_class i_class;
   /** Entry class data */
   void* data;
   
@@ -269,5 +273,9 @@ void hx_context_write(hx_t *hx, const char* filename);
 /** hx_context_free:
  * Deallocate a context. */
 void hx_context_free(hx_t **hx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* hx2_h */
