@@ -1,7 +1,7 @@
 /*****************************************************************
  # waveformat.h: RIFF/WAVE format
  *****************************************************************
- * libhx2: library for reading and writing ubi hxaudio files
+ * libhx2: library for reading and writing .hx audio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 

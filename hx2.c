@@ -1,7 +1,7 @@
 /*****************************************************************
  # hx2.c: Context implementation
  *****************************************************************
- * libhx2: library for reading and writing ubi hxaudio files
+ * libhx2: library for reading and writing .hx audio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 
@@ -17,7 +17,11 @@
 
 struct hx {
   hx_entry_t* entries;
+  
+  unsigned int index_offset;
+  unsigned int index_type;
   unsigned int num_entries;
+  
   enum hx_version version;
   /* read/write stream */
   hx_stream_t stream;
@@ -47,18 +51,6 @@ static struct hx_version_table_entry {
   [HX_VERSION_HXX] = {"hxx", "XBox", HX_BIG_ENDIAN, 0},
   [HX_VERSION_HX3] = {"hx3", "PS3", HX_LITTLE_ENDIAN, 0},
 };
-
-const char* hx_codec_name(enum hx_codec c) {
-  switch (c) {
-    case HX_CODEC_PCM: return "pcm";
-    case HX_CODEC_UBI: return "ubi";
-    case HX_CODEC_PSX: return "psx";
-    case HX_CODEC_DSP: return "dsp-adpcm";
-    case HX_CODEC_XIMA:return "xima";
-    case HX_CODEC_MP3: return "mp3";
-    default: return "invalid-codec";
-  }
-}
 
 static enum hx_class hx_class_from_string(const char* name) {
   if (*name++ != 'C') return HX_CLASS_INVALID;
@@ -167,6 +159,7 @@ static void hx_wav_resource_obj_rw(hx_t *hx, hx_wav_resource_object_t *data) {
   }
   
   if (hx->version == HX_VERSION_HXG) {
+    memset(data->name, 0, HX_STRING_MAX_LENGTH);
     hx_stream_rw32(s, &data->size);
   }
   
@@ -207,7 +200,7 @@ static int hx_wave_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   for (unsigned int i = 0; i < data->num_links; i++) {
     hx_stream_rw32(&hx->stream, &data->links[i].language);
     hx_stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
-    unsigned int language_code = HX_BYTESWAP32(data->links[i].language);
+   // unsigned int language_code = HX_BYTESWAP32(data->links[i].language);
   }
   
   entry->data = data;
@@ -386,6 +379,8 @@ static const struct hx_class_table_entry hx_class_table[] = {
 };
 
 static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
+  int p = hx->stream.pos;
+  
   char classname[256];
   memset(classname, 0, 256);
   unsigned int classname_length;
@@ -411,10 +406,44 @@ static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
   }
   
   if (entry->class != HX_CLASS_INVALID) {
-    return hx_class_table[entry->class].rw(hx, entry);
+    if (!hx_class_table[entry->class].rw(hx, entry)) return -1;
   }
   
-  return 0;
+  return (hx->stream.pos - p);
+}
+
+static void hx_postread(hx_t *hx) {
+  if (hx->version == HX_VERSION_HXG) {
+    /* In hxg, the WavResObj class has no internal name, so
+     * derive them from the EventResData entries instead. */
+    for (unsigned int i = 0; i < hx->num_entries; i++) {
+      if (hx->entries[i].class == HX_CLASS_EVENT_RESOURCE_DATA) {
+        hx_event_resource_data_t *data = hx->entries[i].data;
+        hx_entry_t *entry = hx_context_entry_lookup(hx, data->link_cuuid);
+        if (entry->class == HX_CLASS_WAVE_RESOURCE_DATA) {
+          hx_wav_resource_data_t *wavresdata = entry->data;
+          strncpy(wavresdata->res_data.name, data->name, HX_STRING_MAX_LENGTH);
+        }
+      }
+    }
+  }
+  
+  for (unsigned int i = 0; i < hx->num_entries; i++) {
+    if (hx->entries[i].class == HX_CLASS_WAVE_RESOURCE_DATA) {
+      hx_wav_resource_data_t *data = hx->entries[i].data;
+      for (unsigned int l = 0; l < data->num_links; l++) {
+        hx_wav_resource_data_link_t *link = &data->links[l];
+        hx_wave_file_id_object_t *obj = hx_context_entry_lookup(hx, link->cuuid)->data;
+        
+        unsigned int language = HX_BYTESWAP32(link->language);
+        
+        char buf[HX_STRING_MAX_LENGTH];
+        memset(buf, 0, HX_STRING_MAX_LENGTH);
+        snprintf(buf, HX_STRING_MAX_LENGTH, "%s_%.2s", data->res_data.name, (char*)&language);
+        memcpy(obj->name, buf, HX_STRING_MAX_LENGTH);
+      }
+    }
+  }
 }
 
 static int hx_read(hx_t *hx) {
@@ -497,6 +526,8 @@ static int hx_read(hx_t *hx) {
     hx_entry_rw(hx, entry);
     hx_stream_seek(s, pos);
   }
+  
+  hx_postread(hx);
   
   return 1;
 }

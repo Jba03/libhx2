@@ -1,7 +1,7 @@
 /*****************************************************************
  # codec.c: Encoders/Decoders
  *****************************************************************
- * libhx2: library for reading and writing ubi hxaudio files
+ * libhx2: library for reading and writing .hx audio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 
@@ -22,6 +22,16 @@ int hx_error(hx_t *hx, const char* format, ...);
 
 static void audio_stream_info_copy(hx_audio_stream_info_t *dst, hx_audio_stream_info_t *src) {
   memcpy(dst, src, sizeof(hx_audio_stream_info_t));
+}
+
+const char* hx_codec_name(enum hx_codec c) {
+  if (c == HX_CODEC_PCM) return "pcm";
+  if (c == HX_CODEC_UBI) return "ubi-adpcm";
+  if (c == HX_CODEC_PSX) return "psx-adpcm";
+  if (c == HX_CODEC_DSP) return "dsp-adpcm";
+  if (c == HX_CODEC_IMA) return "ima-adpcm";
+  if (c == HX_CODEC_MP3) return "mp3";
+  return "invalid-codec";
 }
 
 #pragma mark - DSP ADPCM

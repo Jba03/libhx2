@@ -1,7 +1,7 @@
 /*****************************************************************
  # hx2.h: Context declarations
  *****************************************************************
- * libhx2: library for reading and writing ubi hxaudio files
+ * libhx2: library for reading and writing .hx audio files
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 
@@ -25,12 +25,12 @@ typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos
 #define HX_LANGUAGE_IT 0x20207469
 
 enum hx_version {
-  HX_VERSION_HXD, /* Rayman M/Arena */
-  HX_VERSION_HXC, /* Rayman 3 PC */
-  HX_VERSION_HX2, /* Rayman 3 PS2 */
-  HX_VERSION_HXG, /* Rayman 3 GCN */
-  HX_VERSION_HXX, /* Rayman 3 XBOX (+HD) */
-  HX_VERSION_HX3, /* Rayman 3 PS3 HD */
+  HX_VERSION_HXD, /* M/Arena */
+  HX_VERSION_HXC, /* R3 PC */
+  HX_VERSION_HX2, /* R3 PS2 */
+  HX_VERSION_HXG, /* R3 GCN */
+  HX_VERSION_HXX, /* R3 XBOX (+HD) */
+  HX_VERSION_HX3, /* R3 PS3 HD */
   HX_VERSION_INVALID,
 };
 
@@ -49,7 +49,7 @@ enum hx_codec {
   HX_CODEC_UBI  = 0x02, /* UBI ADPCM */
   HX_CODEC_PSX  = 0x03, /* PS ADPCM */
   HX_CODEC_DSP  = 0x04, /* GC 4-bit ADPCM */
-  HX_CODEC_XIMA = 0x05, /* MS IMA ADPCM */
+  HX_CODEC_IMA  = 0x05, /* MS IMA ADPCM */
   HX_CODEC_MP3  = 0x55,
 };
 
@@ -111,7 +111,7 @@ typedef struct hx_wav_resource_object {
   float c2;
   signed char flags;
   /* name (.hxc only?) */
-  char* name;
+  char name[HX_STRING_MAX_LENGTH];
 } hx_wav_resource_object_t;
 
 typedef struct hx_wav_resource_data_link {
@@ -184,6 +184,8 @@ typedef struct hx_wave_file_id_object {
   struct hx_id_object_pointer id_obj;
   struct waveformat_header wave_header;
   
+  /** Name of the stream */
+  char name[HX_STRING_MAX_LENGTH];
   /** Filename of the external stream */
   char ext_stream_filename[HX_STRING_MAX_LENGTH];
   /** Size of the external stream */
@@ -196,6 +198,7 @@ typedef struct hx_wave_file_id_object {
   
   void *extra_wave_data;
   signed int extra_wave_data_length;
+  
 } hx_wave_file_id_object_t;
 
 #pragma mark - Context
