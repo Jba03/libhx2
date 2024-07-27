@@ -67,7 +67,7 @@ typedef struct hx_audio_stream_info {
   unsigned char endianness;
   unsigned int sample_rate;
   unsigned int num_samples;
-  unsigned int codec;
+  enum hx_codec codec;
 } hx_audio_stream_info_t;
 
 typedef struct hx_audio_stream {
@@ -162,7 +162,6 @@ typedef struct hx_random_resource_data {
   hx_random_resource_data_link_t* links;
 } hx_random_resource_data_t;
 
-
 typedef struct hx_switch_resource_data_link {
   unsigned int case_index;
   hx_cuuid_t cuuid;
@@ -176,6 +175,12 @@ typedef struct hx_switch_resource_data {
   unsigned int num_links;
   struct hx_switch_resource_data_link* links;
 } hx_switch_resource_data_t;
+
+typedef struct hx_program_resource_data {
+  int num_links;
+  hx_cuuid_t links[256];
+  void* data;
+} hx_program_resource_data_t;
 
 typedef struct hx_id_object_pointer {
   unsigned int id;

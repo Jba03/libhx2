@@ -163,7 +163,7 @@ static void hx_wav_resource_obj_rw(hx_t *hx, hx_wav_resource_object_t *data) {
     hx_stream_rw(s, &data->name, name_length);
   }
   
-  if (hx->version == HX_VERSION_HXG) {
+  if (hx->version == HX_VERSION_HXG || hx->version == HX_VERSION_HX2) {
     memset(data->name, 0, HX_STRING_MAX_LENGTH);
     hx_stream_rw32(s, &data->size);
   }
@@ -252,11 +252,11 @@ static int hx_random_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
 
 #pragma mark - Class: ProgramResData
 
-struct hx_class_program_resource_data { };
-
 static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
-  struct hx_class_program_resource_data *data = hx_entry_select();
+  hx_program_resource_data_t *data = hx_entry_select();
   hx_stream_t *s = &hx->stream;
+  
+  unsigned int pos = s->pos;
   
   char name[256];
   unsigned int length = 0;
@@ -264,11 +264,29 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   
   if (s->mode == HX_STREAM_MODE_READ) {
     entry->tmp_file_size = entry->file_size - (4 + length + 8);
-    entry->data = malloc(entry->file_size);
+    data->data = malloc(entry->file_size);
   }
   
   /* just copy the entire internal entry (minus the header) */
-  hx_stream_rw(s, entry->data, s->mode == HX_STREAM_MODE_READ ? entry->file_size : entry->tmp_file_size);
+  hx_stream_rw(s, data->data, s->mode == HX_STREAM_MODE_READ ? entry->file_size : entry->tmp_file_size);
+  
+  /* lazy method: scan the buffer for the entries, which are just assumed to be in the correct order */
+  if (s->mode == HX_STREAM_MODE_READ) {
+    data->num_links = 0;
+    for (int i = 0; i < entry->file_size; i++) {
+      char* p = (char*)data->data + i;
+      if (*p == 'E') {
+        printf("encountered entry: %d\n", i);
+        hx_stream_t s = hx_stream_create(++p, sizeof(hx_cuuid_t), HX_STREAM_MODE_READ, hx->stream.endianness);
+        hx_cuuid_t cuuid;
+        hx_stream_rwcuuid(&s, &cuuid);
+        data->links[data->num_links++] = cuuid;
+        i += 8;
+      }
+    }
+  }
+  
+  entry->data = data;
   
   return 1;
 }
