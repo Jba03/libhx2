@@ -28,6 +28,7 @@ struct hx {
   /* callbacks + userdata */
   hx_read_callback_t read_cb;
   hx_write_callback_t write_cb;
+  hx_error_callback_t error_cb;
   void* userdata;
 };
 
@@ -76,6 +77,7 @@ void hx_class_to_string(hx_t *hx, enum hx_class class, char *out, unsigned int *
 }
 
 void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count) {
+  if (!hx) return;
   *entries = hx->entries;
   *count = hx->num_entries;
 }
@@ -90,7 +92,10 @@ int hx_error(hx_t *hx, const char* format, ...) {
   va_list args;
   va_start(args, format);
   printf("[libhx] ");
-  vprintf(format, args);
+  vfprintf(stderr, format, args);
+  char buf[4096];
+  vsnprintf(buf, 4096, format, args);
+  hx->error_cb(buf, hx->userdata);
   printf("\n");
   va_end(args);
   return 0;
@@ -333,7 +338,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
       
       size_t sz = data->ext_stream_size;
       if (!(audio_stream->data = (int16_t*)hx->read_cb(data->ext_stream_filename, data->ext_stream_offset, &sz, hx->userdata))) {
-        hx_error(hx, "failed to read external audio stream data (%s @ 0x%X)", data->ext_stream_filename, data->ext_stream_offset);
+        hx_error(hx, "failed to read from external stream (%s @ 0x%X)", data->ext_stream_filename, data->ext_stream_offset);
         return 0;
       }
     } else if (hx->stream.mode == HX_STREAM_MODE_WRITE) {
@@ -607,9 +612,10 @@ hx_t *hx_context_alloc() {
   return hx;
 }
 
-void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, void* userdata) {
+void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, hx_error_callback_t error, void* userdata) {
   hx->read_cb = read;
   hx->write_cb = write;
+  hx->error_cb = error;
   hx->userdata = userdata;
 }
 

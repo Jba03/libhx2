@@ -19,6 +19,7 @@ typedef struct hx hx_t;
 typedef unsigned long long hx_cuuid_t;
 typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
 typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
+typedef void (*hx_error_callback_t)(const char* error_str, void* userdata);
 
 #define HX_STRING_MAX_LENGTH  256
 
@@ -244,7 +245,7 @@ hx_t *hx_context_alloc();
 
 /** hx_context_callback:
  * Set the read and write callbacks for the specified context, with an optional userdata pointer. */
-void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, void* userdata);
+void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, hx_error_callback_t error, void* userdata);
 
 /** hx_context_open:
  * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`. */
