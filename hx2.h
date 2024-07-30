@@ -71,6 +71,7 @@ typedef struct hx_audio_stream_info {
 } hx_audio_stream_info_t;
 
 typedef struct hx_audio_stream {
+  hx_cuuid_t wavefile_cuuid;
   signed short* data;
   unsigned int size;
   hx_audio_stream_info_t info;
@@ -274,7 +275,7 @@ void hx_class_to_string(hx_t *hx, enum hx_class c, char *out, unsigned int *out_
 
 /** hx_context_write:
  * Write context to memory. */
-void hx_context_write(hx_t *hx, const char* filename);
+void hx_context_write(hx_t *hx, const char* filename, enum hx_version version);
 
 /** hx_context_free:
  * Deallocate a context. */

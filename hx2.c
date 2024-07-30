@@ -228,6 +228,8 @@ static int hx_switch_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
     hx_stream_rw32(&hx->stream, &data->links[i].case_index);
     hx_stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
   }
+  
+  entry->data = data;
 }
 
 static int hx_random_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
@@ -276,12 +278,15 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
     for (int i = 0; i < entry->file_size; i++) {
       char* p = (char*)data->data + i;
       if (*p == 'E') {
-        printf("encountered entry: %d\n", i);
+        if (hx->version == HX_VERSION_HXC) p++;
         hx_stream_t s = hx_stream_create(++p, sizeof(hx_cuuid_t), HX_STREAM_MODE_READ, hx->stream.endianness);
         hx_cuuid_t cuuid;
         hx_stream_rwcuuid(&s, &cuuid);
-        data->links[data->num_links++] = cuuid;
-        i += 8;
+        unsigned int c = (cuuid & 0xFFFFFFFF00000000) >> 32;
+        
+        if (c == 3) {
+          data->links[data->num_links++] = cuuid;
+        }
       }
     }
   }
@@ -304,7 +309,7 @@ static void hx_id_obj_pointer_rw(hx_t *hx, hx_id_object_pointer_t *data) {
     hx_stream_rw32(s, &data->flags);
     hx_stream_rw32(s, &data->unknown2);
   } else {
-    unsigned char tmp_flags;
+    unsigned char tmp_flags = data->flags;
     hx_stream_rw8(s, &tmp_flags);
     data->flags = tmp_flags;
   }
@@ -322,6 +327,9 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
     unsigned int name_length = strlen(data->ext_stream_filename);
     hx_stream_rw32(&hx->stream, &name_length);
     hx_stream_rw(&hx->stream, data->ext_stream_filename, name_length);
+  } else {
+    data->ext_stream_offset = 0;
+    data->ext_stream_size = 0;
   }
   
   if (!waveformat_header_rw(&hx->stream, &data->wave_header)) {
@@ -339,6 +347,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
   }
   
   data->audio_stream = audio_stream;
+  data->audio_stream->wavefile_cuuid = entry->cuuid;
   
   if (data->id_obj.flags & HX_ID_OBJECT_POINTER_FLAG_EXTERNAL) {
     /* data code must be "datx" */
@@ -361,6 +370,8 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
       }
     } else if (hx->stream.mode == HX_STREAM_MODE_WRITE) {
       
+      size_t sz = data->ext_stream_size;
+      hx->write_cb(data->ext_stream_filename, data->audio_stream->data, data->ext_stream_offset, &sz, hx->userdata);
     }
   } else {
     /* data code must be "data" */
@@ -555,7 +566,7 @@ static int hx_read(hx_t *hx) {
   return 1;
 }
 
-static void hx_write(hx_t *hx) {
+static int hx_write(hx_t *hx) {
   hx_stream_t *s = &hx->stream;
   /* Allocate index stream */
   hx_stream_t index_stream = hx_stream_alloc(hx->num_entries * 0xFF, HX_STREAM_MODE_WRITE, s->endianness);
@@ -611,15 +622,18 @@ static void hx_write(hx_t *hx) {
   unsigned int index_offset = s->pos;
   hx_stream_rw(s, index_stream.buf, index_size);
   
-  s->size = s->pos + (8 * 4);
-  memset(s->buf + s->pos, 0, 8 * 4);
+  s->size = s->pos;
+  if (hx->version == HX_VERSION_HXG || hx->version == HX_VERSION_HX2) {
+    s->size += (8 * 4);
+    memset(s->buf + s->pos, 0, 8 * 4);
+  }
   
   hx_stream_seek(s, 0);
   hx_stream_rw32(s, &index_offset);
   
   hx_stream_dealloc(&index_stream);
 
-  return 0;
+  return 1;
 }
 
 #pragma mark - HX
@@ -675,11 +689,11 @@ int hx_context_open(hx_t *hx, const char* filename) {
   
 }
 
-void hx_context_write(hx_t *hx, const char* filename) {
+void hx_context_write(hx_t *hx, const char* filename, enum hx_version version) {
   hx_stream_t ps = hx->stream;
   hx->stream = hx_stream_alloc(0x4FFFFF, HX_STREAM_MODE_WRITE, ps.endianness);
   memset(hx->stream.buf, 0, hx->stream.size);
-  hx_write(hx);
+  if (!hx_write(hx)) return;
 
   size_t size = hx->stream.size;
   hx->write_cb(filename, hx->stream.buf, 0, &size, hx->userdata);
@@ -688,5 +702,11 @@ void hx_context_write(hx_t *hx, const char* filename) {
 }
 
 void hx_context_free(hx_t **hx) {
+  for (unsigned int i = 0; i < (*hx)->num_entries; i++) {
+    hx_entry_t *e = (*hx)->entries + i;
+    /*todo*/
+    free(e->data);
+  }
+  free((*hx)->entries);
   free(*hx);
 }

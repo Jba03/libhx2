@@ -117,6 +117,7 @@ int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   out->info.num_samples = total_samples;
   out->size = dsp_pcm_size(total_samples);
   out->data = malloc(out->size);
+  out->wavefile_cuuid = in->wavefile_cuuid;
   
   short* dst = out->data;
   char* src = stream.buf + stream.pos;
@@ -207,10 +208,12 @@ int dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   unsigned int num_samples = in->info.num_samples;
   unsigned int framecount = (num_samples / DSP_SAMPLES_PER_FRAME) + (num_samples % DSP_SAMPLES_PER_FRAME != 0);
   unsigned int output_stream_size = framecount * DSP_BYTES_PER_FRAME * in->info.num_channels + in->info.num_channels * DSP_HEADER_SIZE;
+  output_stream_size *= 2;
   
   audio_stream_info_copy(&out->info, &in->info);
   out->info.codec = HX_CODEC_DSP;
   out->info.endianness = HX_BIG_ENDIAN;
+  out->wavefile_cuuid = in->wavefile_cuuid;
   
   hx_stream_t output_stream = hx_stream_alloc(output_stream_size, HX_STREAM_MODE_WRITE, out->info.endianness);
   out->data = (signed short*)output_stream.buf;
@@ -247,6 +250,8 @@ int dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
       hx_stream_rw(&output_stream, frame, dsp_byte_count(samples_to_process));
     }
   }
+  
+  out->size = output_stream.pos;
   
   /* Write headers */
   hx_stream_seek(&output_stream, 0);
