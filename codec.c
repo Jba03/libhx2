@@ -96,11 +96,7 @@ unsigned int dsp_pcm_size(unsigned int sample_count) {
   return frames * DSP_SAMPLES_PER_FRAME * sizeof(short);
 }
 
-int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
-  if (in->info.codec != HX_CODEC_DSP) {
-    return hx_error(hx, "dsp_decode: input is not dsp (%s)", hx_codec_name(in->info.codec));
-  }
-  
+static int dsp_decode(hx_audio_stream_t *in, hx_audio_stream_t *out) {
   stream_t stream = stream_create(in->data, in->size, STREAM_MODE_READ, in->info.endianness);
   
   unsigned int total_samples = 0;
@@ -200,11 +196,7 @@ static void dsp_frame_encode(signed short pcm[16], unsigned int num_samples, sig
   for (int y = 0; y < 7; y++) adpcm[y+1] = (char)((outSamples[y*2]<<4) | (outSamples[y*2+1]&0xF));
 }
 
-int dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
-  if (in->info.codec != HX_CODEC_PCM) {
-    return hx_error(hx, "dsp_encode failed: input is not pcm (%s)", hx_codec_name(in->info.codec));
-  }
-  
+static int dsp_encode(hx_audio_stream_t *in, hx_audio_stream_t *out) {
   unsigned int num_samples = in->info.num_samples;
   unsigned int framecount = (num_samples / DSP_SAMPLES_PER_FRAME) + (num_samples % DSP_SAMPLES_PER_FRAME != 0);
   unsigned int output_stream_size = framecount * DSP_BYTES_PER_FRAME * in->info.num_channels + in->info.num_channels * DSP_HEADER_SIZE;

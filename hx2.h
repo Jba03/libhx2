@@ -17,6 +17,7 @@ extern "C" {
 
 typedef struct hx hx_t;
 typedef unsigned long long hx_cuuid_t;
+
 typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
 typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
 typedef void (*hx_error_callback_t)(const char* error_str, void* userdata);
@@ -77,23 +78,27 @@ typedef struct hx_audio_stream {
   hx_audio_stream_info_t info;
 } hx_audio_stream_t;
 
-/** dsp_decode:
- * Decode DSP ADPCM data into PCM samples. */
-int dsp_decode(hx_t *hx, hx_audio_stream_t *in_dsp, hx_audio_stream_t *out_pcm);
+/**
+ * Set the default parameters of audio stream `s`.
+ */
+void hx_audio_stream_init(hx_audio_stream_t *s);
 
-/** dsp_encode:
- * Encode PCM samples into DSP ADPCM data. */
-int dsp_encode(hx_t *hx, hx_audio_stream_t *in_pcm, hx_audio_stream_t *out_dsp);
+/**
+ * Get the size of audio stream `s` in bytes.
+ */
+unsigned int hx_audio_stream_size(hx_audio_stream_t *s);
 
-/** dsp_pcm_size:
- * Get the size of decoded DSP ADPCM data. */
-unsigned int dsp_pcm_size(unsigned int sample_count);
-
-/** hx_audio_stream_write_wav:
- * Write audio stream to a .wav file */
+/**
+ * Write audio stream to .wav file
+ */
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename);
 
-unsigned int hx_audio_stream_size(hx_audio_stream_t *s);
+/**
+ * Convert audio data from stream `i_stream` into `o_stream`.
+ * The parameters of the desired output format should be set in the output stream info.
+ * Returns: 1 on success, 0 on encoding/decoding error, -1 on unsupported format.
+ */
+int hx_audio_convert(hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream);
 
 #pragma mark - Class -
 
@@ -245,40 +250,44 @@ typedef struct hx_entry {
   unsigned int tmp_file_size;
 } hx_entry_t;
 
-/** hx_context_alloc:
- * Allocate an empty context. */
+/**
+ * Allocate an empty context.
+ */
 hx_t *hx_context_alloc();
 
-/** hx_context_callback:
- * Set the read and write callbacks for the specified context, with an optional userdata pointer. */
+/**
+ * Set read, write and error callbacks for the specified context, with an optional userdata pointer.
+ */
 void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, hx_error_callback_t error, void* userdata);
 
-/** hx_context_open:
- * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`. */
+/**
+ * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`.
+ */
 int hx_context_open(hx_t *hx, const char* filename);
 
-/** hx_context_open2:
- * Load a hxaudio file from memory into context `hx`. */
-int hx_context_open2(hx_t *hx, signed char* buf, size_t sz);
-
-/** hx_context_get_entries:
- * Get all entries for the specified context */
+/**
+ * Get all entries for the specified context
+ */
 void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count);
 
-/** hx_context_entry_lookup:
- * Find entry by cuuid */
+/**
+ * Find entry by cuuid
+ */
 hx_entry_t *hx_context_entry_lookup(hx_t *hx, hx_cuuid_t cuuid);
 
-/** hx_class_to_string:
- * Get the name of a class `c` */
+/**
+ * Get the name of a class `c`
+ */
 void hx_class_to_string(hx_t *hx, enum hx_class c, char *out, unsigned int *out_sz);
 
-/** hx_context_write:
- * Write context to memory. */
+/**
+ * Write a context to memory.
+ */
 void hx_context_write(hx_t *hx, const char* filename, enum hx_version version);
 
-/** hx_context_free:
- * Deallocate a context. */
+/**
+ * Deallocate a context.
+ */
 void hx_context_free(hx_t **hx);
 
 #ifdef __cplusplus

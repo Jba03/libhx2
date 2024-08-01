@@ -13,9 +13,10 @@
 #include <stdarg.h>
 #include <assert.h>
 
+#include "codec.c"
+
 struct hx {
   hx_entry_t* entries;
-  
   unsigned int index_offset;
   unsigned int index_type;
   unsigned int num_entries;
@@ -101,6 +102,17 @@ int hx_error(hx_t *hx, const char* format, ...) {
 
 #pragma mark - Audio stream
 
+void hx_audio_stream_init(hx_audio_stream_t *s) {
+  s->info.codec = HX_CODEC_PCM;
+  s->info.endianness = HX_NATIVE_ENDIAN;
+  s->info.num_channels = 0;
+  s->info.num_samples = 0;
+  s->info.sample_rate = 0;
+  s->size = 0;
+  s->data = NULL;
+  s->wavefile_cuuid = 0;
+}
+
 int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename) {
   struct waveformat_header header;
   waveformat_default_header(&header);
@@ -129,6 +141,14 @@ unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
     default:
       return 0;
   }
+}
+
+int hx_audio_convert(hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream) {
+  enum hx_codec got = i_stream->info.codec;
+  enum hx_codec wanted = o_stream->info.codec;
+  if (got == HX_CODEC_DSP && wanted == HX_CODEC_PCM) return dsp_decode(i_stream, o_stream);
+  if (got == HX_CODEC_PCM && wanted == HX_CODEC_DSP) return dsp_encode(i_stream, o_stream);
+  return -1;
 }
 
 #define hx_entry_select() (hx->stream.mode == STREAM_MODE_WRITE ? entry->data : malloc(sizeof(*data)))
