@@ -50,24 +50,24 @@ struct dsp_adpcm {
   signed int history1, history2, remaining; /* internal */
 };
 
-static void dsp_adpcm_header_rw(hx_stream_t *s, struct dsp_adpcm *adpcm) {
-  hx_stream_rw32(s, &adpcm->num_samples);
-  hx_stream_rw32(s, &adpcm->num_nibbles);
-  hx_stream_rw32(s, &adpcm->sample_rate);
-  hx_stream_rw16(s, &adpcm->loop_flag);
-  hx_stream_rw16(s, &adpcm->format);
-  hx_stream_rw32(s, &adpcm->loop_start);
-  hx_stream_rw32(s, &adpcm->loop_end);
-  hx_stream_rw32(s, &adpcm->ca);
-  for (int i = 0; i < 16; i++) hx_stream_rw16(s, &adpcm->c[i]);
-  hx_stream_rw16(s, &adpcm->gain);
-  hx_stream_rw16(s, &adpcm->ps);
-  hx_stream_rw16(s, &adpcm->hst1);
-  hx_stream_rw16(s, &adpcm->hst2);
-  hx_stream_rw16(s, &adpcm->loop_ps);
-  hx_stream_rw16(s, &adpcm->loop_hst1);
-  hx_stream_rw16(s, &adpcm->loop_hst2);
-  hx_stream_advance(s, 11 * 2); /* padding */
+static void dsp_adpcm_header_rw(stream_t *s, struct dsp_adpcm *adpcm) {
+  stream_rw32(s, &adpcm->num_samples);
+  stream_rw32(s, &adpcm->num_nibbles);
+  stream_rw32(s, &adpcm->sample_rate);
+  stream_rw16(s, &adpcm->loop_flag);
+  stream_rw16(s, &adpcm->format);
+  stream_rw32(s, &adpcm->loop_start);
+  stream_rw32(s, &adpcm->loop_end);
+  stream_rw32(s, &adpcm->ca);
+  for (int i = 0; i < 16; i++) stream_rw16(s, &adpcm->c[i]);
+  stream_rw16(s, &adpcm->gain);
+  stream_rw16(s, &adpcm->ps);
+  stream_rw16(s, &adpcm->hst1);
+  stream_rw16(s, &adpcm->hst2);
+  stream_rw16(s, &adpcm->loop_ps);
+  stream_rw16(s, &adpcm->loop_hst1);
+  stream_rw16(s, &adpcm->loop_hst2);
+  stream_advance(s, 11 * 2); /* padding */
 }
 
 static int dsp_nibble_count(int samples) {
@@ -101,7 +101,7 @@ int dsp_decode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
     return hx_error(hx, "dsp_decode: input is not dsp (%s)", hx_codec_name(in->info.codec));
   }
   
-  hx_stream_t stream = hx_stream_create(in->data, in->size, HX_STREAM_MODE_READ, in->info.endianness);
+  stream_t stream = stream_create(in->data, in->size, STREAM_MODE_READ, in->info.endianness);
   
   unsigned int total_samples = 0;
   struct dsp_adpcm channels[in->info.num_channels];
@@ -215,11 +215,11 @@ int dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
   out->info.endianness = HX_BIG_ENDIAN;
   out->wavefile_cuuid = in->wavefile_cuuid;
   
-  hx_stream_t output_stream = hx_stream_alloc(output_stream_size, HX_STREAM_MODE_WRITE, out->info.endianness);
+  stream_t output_stream = stream_alloc(output_stream_size, STREAM_MODE_WRITE, out->info.endianness);
   out->data = (signed short*)output_stream.buf;
   out->size = output_stream_size;
   
-  hx_stream_seek(&output_stream, out->info.num_channels * DSP_HEADER_SIZE);
+  stream_seek(&output_stream, out->info.num_channels * DSP_HEADER_SIZE);
 
   signed short samples[16];
   signed short* src = in->data;
@@ -247,14 +247,14 @@ int dsp_encode(hx_t *hx, hx_audio_stream_t *in, hx_audio_stream_t *out) {
         header[channel].ps = frame[0];
         memset(header[channel].c, 0, 16 * sizeof(short));
       }
-      hx_stream_rw(&output_stream, frame, dsp_byte_count(samples_to_process));
+      stream_rw(&output_stream, frame, dsp_byte_count(samples_to_process));
     }
   }
   
   out->size = output_stream.pos;
   
   /* Write headers */
-  hx_stream_seek(&output_stream, 0);
+  stream_seek(&output_stream, 0);
   for (int i = 0; i < out->info.num_channels; i++)
     dsp_adpcm_header_rw(&output_stream, header + i);
   

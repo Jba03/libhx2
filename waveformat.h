@@ -64,10 +64,10 @@ void waveformat_default_header(struct waveformat_header *header);
 
 /** waveformat_header_rw:
  * Read or write a wave format header. */
-int waveformat_header_rw(hx_stream_t *s, struct waveformat_header *header);
+int waveformat_header_rw(stream_t *s, struct waveformat_header *header);
 
 /** waveformat_rw:
  * Read or write wave format header + data (size of `subchunk2_size`) */
-int waveformat_rw(hx_stream_t *s, struct waveformat_header *header, void* data);
+int waveformat_rw(stream_t *s, struct waveformat_header *header, void* data);
 
 #endif /* waveformat_h */
