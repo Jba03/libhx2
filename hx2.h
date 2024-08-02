@@ -16,6 +16,7 @@ extern "C" {
 
 typedef struct hx hx_t;
 typedef unsigned long long hx_cuuid_t;
+typedef unsigned int hx_size_t;
 
 typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
 typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
@@ -58,8 +59,15 @@ enum hx_format {
   HX_FORMAT_MP3  = 0x55,
 };
 
-/** HX_FORMAT_name:
- * Get the name of codec `c`. */
+/**
+ * Get the name of a class `c` for specified version `v`.
+ * Returns the length of the output string.
+ */
+hx_size_t hx_class_name(enum hx_class c, enum hx_version v, char* buf, hx_size_t buf_sz);
+
+/**
+ * Get the name of audio format `c`.
+ */
 const char* hx_format_name(enum hx_format c);
 
 typedef struct hx_audio_stream_info {
@@ -85,19 +93,19 @@ void hx_audio_stream_init(hx_audio_stream_t *s);
 /**
  * Get the size of audio stream `s` in bytes.
  */
-unsigned int hx_audio_stream_size(hx_audio_stream_t *s);
+unsigned int hx_audio_stream_size(const hx_audio_stream_t *s);
 
 /**
  * Write audio stream to .wav file
  */
-int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename);
+int hx_audio_stream_write_wav(const hx_t *hx, hx_audio_stream_t *s, const char* filename);
 
 /**
  * Convert audio data from stream `i_stream` into `o_stream`.
  * The parameters of the desired output format should be set in the output stream info.
  * Return: 1 on success, 0 on encoding/decoding error, -1 on unsupported format.
  */
-int hx_audio_convert(hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream);
+int hx_audio_convert(const hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream);
 
 #pragma mark - Class -
 
@@ -265,22 +273,27 @@ void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t 
 int hx_context_open(hx_t *hx, const char* filename);
 
 /**
- * Get all entries for the specified context
+ * Get the current version of a context
  */
-void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count);
+enum hx_version hx_context_version(const hx_t *hx);
+
+/**
+ * Get the number of entries in a context
+ */
+hx_size_t hx_context_num_entries(const hx_t *hx);
+
+/**
+ * Get an entry by index
+ */
+hx_entry_t *hx_context_get_entry(const hx_t *hx, hx_size_t index);
 
 /**
  * Find entry by cuuid
  */
-hx_entry_t *hx_context_entry_lookup(hx_t *hx, hx_cuuid_t cuuid);
+hx_entry_t *hx_context_find_entry(const hx_t *hx, hx_cuuid_t cuuid);
 
 /**
- * Get the name of a class `c`
- */
-void hx_class_to_string(hx_t *hx, enum hx_class c, char *out, unsigned int *out_sz);
-
-/**
- * Write a context to memory.
+ * Write context to file.
  */
 void hx_context_write(hx_t *hx, const char* filename, enum hx_version version);
 

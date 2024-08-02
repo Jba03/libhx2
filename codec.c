@@ -5,33 +5,15 @@
  * Copyright (c) 2024 Jba03 <jba03@jba03.xyz>
  *****************************************************************/
 
-#include "hx2.h"
-
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-
-#include <math.h>
-#include <float.h>
 #include <limits.h>
 
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
 
-int hx_error(hx_t *hx, const char* format, ...);
+int hx_error(const hx_t *hx, const char* format, ...);
 
-static void audio_stream_info_copy(hx_audio_stream_info_t *dst, hx_audio_stream_info_t *src) {
+static void audio_stream_info_copy(hx_audio_stream_info_t *dst, const hx_audio_stream_info_t *src) {
   memcpy(dst, src, sizeof(hx_audio_stream_info_t));
-}
-
-const char* hx_format_name(enum hx_format c) {
-  if (c == HX_FORMAT_PCM) return "pcm";
-  if (c == HX_FORMAT_UBI) return "ubi-adpcm";
-  if (c == HX_FORMAT_PSX) return "psx-adpcm";
-  if (c == HX_FORMAT_DSP) return "dsp-adpcm";
-  if (c == HX_FORMAT_IMA) return "ima-adpcm";
-  if (c == HX_FORMAT_MP3) return "mp3";
-  return "invalid-codec";
 }
 
 #pragma mark - DSP ADPCM
@@ -96,7 +78,7 @@ unsigned int dsp_pcm_size(unsigned int sample_count) {
   return frames * DSP_SAMPLES_PER_FRAME * sizeof(short);
 }
 
-static int dsp_decode(hx_audio_stream_t *in, hx_audio_stream_t *out) {
+static int dsp_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
   stream_t stream = stream_create(in->data, in->size, STREAM_MODE_READ, in->info.endianness);
   
   unsigned int total_samples = 0;
@@ -196,7 +178,7 @@ static void dsp_frame_encode(signed short pcm[16], unsigned int num_samples, sig
   for (int y = 0; y < 7; y++) adpcm[y+1] = (char)((outSamples[y*2]<<4) | (outSamples[y*2+1]&0xF));
 }
 
-static int dsp_encode(hx_audio_stream_t *in, hx_audio_stream_t *out) {
+static int dsp_encode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
   unsigned int num_samples = in->info.num_samples;
   unsigned int framecount = (num_samples / DSP_SAMPLES_PER_FRAME) + (num_samples % DSP_SAMPLES_PER_FRAME != 0);
   unsigned int output_stream_size = framecount * DSP_BYTES_PER_FRAME * in->info.num_channels + in->info.num_channels * DSP_HEADER_SIZE;

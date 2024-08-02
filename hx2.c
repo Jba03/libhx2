@@ -15,8 +15,6 @@
 
 #include "codec.c"
 
-
-
 struct hx {
   hx_entry_t* entries;
   unsigned int index_offset;
@@ -70,26 +68,41 @@ static enum hx_class hx_class_from_string(const char* name) {
   return HX_CLASS_INVALID;
 }
 
-void hx_class_to_string(hx_t *hx, enum hx_class class, char *out, unsigned int *out_sz) {
-  const struct hx_version_table_entry v = hx_version_table[hx->version];
+const char* hx_format_name(enum hx_format c) {
+  if (c == HX_FORMAT_PCM) return "pcm";
+  if (c == HX_FORMAT_UBI) return "ubi-adpcm";
+  if (c == HX_FORMAT_PSX) return "psx-adpcm";
+  if (c == HX_FORMAT_DSP) return "dsp-adpcm";
+  if (c == HX_FORMAT_IMA) return "ima-adpcm";
+  if (c == HX_FORMAT_MP3) return "mp3";
+  return "invalid-codec";
+}
+
+hx_size_t hx_class_name(enum hx_class class, enum hx_version version, char* buf, hx_size_t buf_sz) {
+  const struct hx_version_table_entry v = hx_version_table[version];
   const struct hx_class_table_entry c = hx_class_table[class];
-  int q = sprintf(out, "C%s%s", c.crossversion ? "" : v.platform,  c.name);
-  if (out_sz) *out_sz += q;
+  return snprintf(buf, buf_sz, "C%s%s", c.crossversion ? "" : v.platform,  c.name);
 }
 
-void hx_context_get_entries(hx_t *hx, hx_entry_t** entries, int *count) {
-  if (!hx) return;
-  *entries = hx->entries;
-  *count = hx->num_entries;
+enum hx_version hx_context_version(const hx_t *hx) {
+  return hx->version;
 }
 
-hx_entry_t *hx_context_entry_lookup(hx_t *hx, unsigned long long cuuid) {
+hx_size_t hx_context_num_entries(const hx_t *hx) {
+  return hx->num_entries;
+}
+
+hx_entry_t* hx_context_get_entry(const hx_t *hx, unsigned int index) {
+  return (index < hx->num_entries) ? &hx->entries[index] : NULL;
+}
+
+hx_entry_t *hx_context_find_entry(const hx_t *hx, hx_cuuid_t cuuid) {
   for (unsigned int i = 0; i < hx->num_entries; i++)
     if (hx->entries[i].cuuid == cuuid) return &hx->entries[i];
   return NULL;
 }
 
-int hx_error(hx_t *hx, const char* format, ...) {
+int hx_error(const hx_t *hx, const char* format, ...) {
   va_list args;
   va_start(args, format);
   printf("[libhx] ");
@@ -115,7 +128,7 @@ void hx_audio_stream_init(hx_audio_stream_t *s) {
   s->wavefile_cuuid = 0;
 }
 
-int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filename) {
+int hx_audio_stream_write_wav(const hx_t *hx, hx_audio_stream_t *s, const char* filename) {
   struct waveformat_header header;
   waveformat_default_header(&header);
   header.sample_rate = s->info.sample_rate;
@@ -134,7 +147,7 @@ int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filena
   return 1;
 }
 
-unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
+unsigned int hx_audio_stream_size(const hx_audio_stream_t *s) {
   switch (s->info.fmt) {
     case HX_FORMAT_PCM:
       return s->size;
@@ -145,7 +158,7 @@ unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
   }
 }
 
-int hx_audio_convert(hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream) {
+int hx_audio_convert(const hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream) {
   enum hx_format got = i_stream->info.fmt;
   enum hx_format wanted = o_stream->info.fmt;
   if (got == HX_FORMAT_DSP && wanted == HX_FORMAT_PCM) return dsp_decode(i_stream, o_stream);
@@ -280,9 +293,9 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   
   unsigned int pos = s->pos;
   
-  char name[256];
-  unsigned int length = 0;
-  hx_class_to_string(hx, entry->i_class, name, &length);
+  char name[HX_STRING_MAX_LENGTH];
+  hx_class_name(entry->i_class, hx->version, name, HX_STRING_MAX_LENGTH);
+  unsigned int length = strlen(name);
   
   if (s->mode == STREAM_MODE_READ) {
     entry->tmp_file_size = entry->file_size - (4 + length + 8);
@@ -438,7 +451,7 @@ static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
   char classname[256];
   memset(classname, 0, 256);
   unsigned int classname_length;
-  if (hx->stream.mode == STREAM_MODE_WRITE) hx_class_to_string(hx, entry->i_class, classname, &classname_length);
+  if (hx->stream.mode == STREAM_MODE_WRITE) hx_class_name(hx, entry->i_class, classname, &classname_length);
   stream_rw32(&hx->stream, &classname_length);
   
   if (hx->stream.mode == STREAM_MODE_READ) memset(classname, 0, classname_length + 1);
@@ -473,7 +486,7 @@ static void hx_postread(hx_t *hx) {
     for (unsigned int i = 0; i < hx->num_entries; i++) {
       if (hx->entries[i].i_class == HX_CLASS_EVENT_RESOURCE_DATA) {
         hx_event_resource_data_t *data = hx->entries[i].data;
-        hx_entry_t *entry = hx_context_entry_lookup(hx, data->link_cuuid);
+        hx_entry_t *entry = hx_context_find_entry(hx, data->link_cuuid);
         if (entry->i_class == HX_CLASS_WAVE_RESOURCE_DATA) {
           hx_wav_resource_data_t *wavresdata = entry->data;
           strncpy(wavresdata->res_data.name, data->name, HX_STRING_MAX_LENGTH);
@@ -487,7 +500,7 @@ static void hx_postread(hx_t *hx) {
       hx_wav_resource_data_t *data = hx->entries[i].data;
       for (unsigned int l = 0; l < data->num_links; l++) {
         hx_wav_resource_data_link_t *link = &data->links[l];
-        hx_wave_file_id_object_t *obj = hx_context_entry_lookup(hx, link->cuuid)->data;
+        hx_wave_file_id_object_t *obj = hx_context_find_entry(hx, link->cuuid)->data;
         
         unsigned int language = HX_BYTESWAP32(link->language);
         
@@ -604,9 +617,8 @@ static int hx_write(hx_t *hx) {
   while (num_entries--) {
     hx_entry_t entry = hx->entries[hx->num_entries - num_entries - 1];
     
-    char classname[256];
-    unsigned int classname_length = 0;
-    hx_class_to_string(hx, entry.i_class, classname, &classname_length);
+    char classname[HX_STRING_MAX_LENGTH];
+    unsigned int classname_length = hx_class_name(entry.i_class, hx->version, classname, HX_STRING_MAX_LENGTH);
     
     //printf("Writing [%d]: %s (%016llX)\n", hx->num_entries - num_entries - 1, classname, entry.cuuid);
     if (!hx_entry_rw(hx, &entry)) {
