@@ -12,7 +12,6 @@
 extern "C" {
 #endif
 
-#include <stddef.h>
 #include "waveformat.h"
 
 typedef struct hx hx_t;
@@ -50,25 +49,25 @@ enum hx_class {
   HX_CLASS_INVALID,
 };
 
-enum hx_codec {
-  HX_CODEC_PCM  = 0x01, /* PCM */
-  HX_CODEC_UBI  = 0x02, /* UBI ADPCM */
-  HX_CODEC_PSX  = 0x03, /* PS ADPCM */
-  HX_CODEC_DSP  = 0x04, /* GC 4-bit ADPCM */
-  HX_CODEC_IMA  = 0x05, /* MS IMA ADPCM */
-  HX_CODEC_MP3  = 0x55,
+enum hx_format {
+  HX_FORMAT_PCM  = 0x01, /* PCM */
+  HX_FORMAT_UBI  = 0x02, /* UBI ADPCM */
+  HX_FORMAT_PSX  = 0x03, /* PS ADPCM */
+  HX_FORMAT_DSP  = 0x04, /* GC 4-bit ADPCM */
+  HX_FORMAT_IMA  = 0x05, /* MS IMA ADPCM */
+  HX_FORMAT_MP3  = 0x55,
 };
 
-/** hx_codec_name:
+/** HX_FORMAT_name:
  * Get the name of codec `c`. */
-const char* hx_codec_name(enum hx_codec c);
+const char* hx_format_name(enum hx_format c);
 
 typedef struct hx_audio_stream_info {
   unsigned char num_channels;
   unsigned char endianness;
   unsigned int sample_rate;
   unsigned int num_samples;
-  enum hx_codec codec;
+  enum hx_format fmt;
 } hx_audio_stream_info_t;
 
 typedef struct hx_audio_stream {
@@ -96,7 +95,7 @@ int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filena
 /**
  * Convert audio data from stream `i_stream` into `o_stream`.
  * The parameters of the desired output format should be set in the output stream info.
- * Returns: 1 on success, 0 on encoding/decoding error, -1 on unsupported format.
+ * Return: 1 on success, 0 on encoding/decoding error, -1 on unsupported format.
  */
 int hx_audio_convert(hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream);
 

@@ -15,6 +15,8 @@
 
 #include "codec.c"
 
+
+
 struct hx {
   hx_entry_t* entries;
   unsigned int index_offset;
@@ -45,9 +47,9 @@ static struct hx_version_table_entry {
   unsigned int supported_codecs;
 } const hx_version_table[] = {
   [HX_VERSION_HXD] = {"hxd", "PC", HX_BIG_ENDIAN, 0},
-  [HX_VERSION_HXC] = {"hxc", "PC", HX_LITTLE_ENDIAN, HX_CODEC_UBI | HX_CODEC_PCM},
-  [HX_VERSION_HX2] = {"hx2", "PS2", HX_LITTLE_ENDIAN, HX_CODEC_PSX},
-  [HX_VERSION_HXG] = {"hxg", "GC", HX_BIG_ENDIAN, HX_CODEC_DSP},
+  [HX_VERSION_HXC] = {"hxc", "PC", HX_LITTLE_ENDIAN, HX_FORMAT_UBI | HX_FORMAT_PCM},
+  [HX_VERSION_HX2] = {"hx2", "PS2", HX_LITTLE_ENDIAN, HX_FORMAT_PSX},
+  [HX_VERSION_HXG] = {"hxg", "GC", HX_BIG_ENDIAN, HX_FORMAT_DSP},
   [HX_VERSION_HXX] = {"hxx", "XBox", HX_BIG_ENDIAN, 0},
   [HX_VERSION_HX3] = {"hx3", "PS3", HX_LITTLE_ENDIAN, 0},
 };
@@ -103,7 +105,7 @@ int hx_error(hx_t *hx, const char* format, ...) {
 #pragma mark - Audio stream
 
 void hx_audio_stream_init(hx_audio_stream_t *s) {
-  s->info.codec = HX_CODEC_PCM;
+  s->info.fmt = HX_FORMAT_PCM;
   s->info.endianness = HX_NATIVE_ENDIAN;
   s->info.num_channels = 0;
   s->info.num_samples = 0;
@@ -133,10 +135,10 @@ int hx_audio_stream_write_wav(hx_t *hx, hx_audio_stream_t *s, const char* filena
 }
 
 unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
-  switch (s->info.codec) {
-    case HX_CODEC_PCM:
+  switch (s->info.fmt) {
+    case HX_FORMAT_PCM:
       return s->size;
-    case HX_CODEC_DSP:
+    case HX_FORMAT_DSP:
       return dsp_pcm_size(HX_BYTESWAP32(*(unsigned*)s->data));
     default:
       return 0;
@@ -144,10 +146,10 @@ unsigned int hx_audio_stream_size(hx_audio_stream_t *s) {
 }
 
 int hx_audio_convert(hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream) {
-  enum hx_codec got = i_stream->info.codec;
-  enum hx_codec wanted = o_stream->info.codec;
-  if (got == HX_CODEC_DSP && wanted == HX_CODEC_PCM) return dsp_decode(i_stream, o_stream);
-  if (got == HX_CODEC_PCM && wanted == HX_CODEC_DSP) return dsp_encode(i_stream, o_stream);
+  enum hx_format got = i_stream->info.fmt;
+  enum hx_format wanted = o_stream->info.fmt;
+  if (got == HX_FORMAT_DSP && wanted == HX_FORMAT_PCM) return dsp_decode(i_stream, o_stream);
+  if (got == HX_FORMAT_PCM && wanted == HX_FORMAT_DSP) return dsp_encode(i_stream, o_stream);
   return -1;
 }
 
@@ -357,7 +359,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
   
   hx_audio_stream_t *audio_stream = (hx->stream.mode == STREAM_MODE_READ) ? malloc(sizeof(*audio_stream)) : data->audio_stream;
   if (hx->stream.mode == STREAM_MODE_READ) {
-    audio_stream->info.codec = data->wave_header.format;
+    audio_stream->info.fmt = data->wave_header.format;
     audio_stream->info.num_channels = data->wave_header.num_channels;
     audio_stream->info.endianness = hx->stream.endianness;
     audio_stream->info.sample_rate = data->wave_header.sample_rate;

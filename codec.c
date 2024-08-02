@@ -24,13 +24,13 @@ static void audio_stream_info_copy(hx_audio_stream_info_t *dst, hx_audio_stream_
   memcpy(dst, src, sizeof(hx_audio_stream_info_t));
 }
 
-const char* hx_codec_name(enum hx_codec c) {
-  if (c == HX_CODEC_PCM) return "pcm";
-  if (c == HX_CODEC_UBI) return "ubi-adpcm";
-  if (c == HX_CODEC_PSX) return "psx-adpcm";
-  if (c == HX_CODEC_DSP) return "dsp-adpcm";
-  if (c == HX_CODEC_IMA) return "ima-adpcm";
-  if (c == HX_CODEC_MP3) return "mp3";
+const char* hx_format_name(enum hx_format c) {
+  if (c == HX_FORMAT_PCM) return "pcm";
+  if (c == HX_FORMAT_UBI) return "ubi-adpcm";
+  if (c == HX_FORMAT_PSX) return "psx-adpcm";
+  if (c == HX_FORMAT_DSP) return "dsp-adpcm";
+  if (c == HX_FORMAT_IMA) return "ima-adpcm";
+  if (c == HX_FORMAT_MP3) return "mp3";
   return "invalid-codec";
 }
 
@@ -109,7 +109,7 @@ static int dsp_decode(hx_audio_stream_t *in, hx_audio_stream_t *out) {
   }
   
   audio_stream_info_copy(&out->info, &in->info);
-  out->info.codec = HX_CODEC_PCM;
+  out->info.fmt = HX_FORMAT_PCM;
   out->info.num_samples = total_samples;
   out->size = dsp_pcm_size(total_samples);
   out->data = malloc(out->size);
@@ -203,7 +203,7 @@ static int dsp_encode(hx_audio_stream_t *in, hx_audio_stream_t *out) {
   output_stream_size *= 2;
   
   audio_stream_info_copy(&out->info, &in->info);
-  out->info.codec = HX_CODEC_DSP;
+  out->info.fmt = HX_FORMAT_DSP;
   out->info.endianness = HX_BIG_ENDIAN;
   out->wavefile_cuuid = in->wavefile_cuuid;
   
