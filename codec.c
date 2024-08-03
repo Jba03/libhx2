@@ -72,7 +72,8 @@ static int dsp_byte_count(int samples) {
   return DSP_BYTES_PER_FRAME * frames + extra_bytes;
 }
 
-unsigned int dsp_pcm_size(unsigned int sample_count) {
+/** Size of decoded dsp stream */
+static hx_size_t dsp_pcm_size(hx_size_t sample_count) {
   unsigned int frames = sample_count / DSP_SAMPLES_PER_FRAME;
   if (sample_count % DSP_SAMPLES_PER_FRAME) frames++;
   return frames * DSP_SAMPLES_PER_FRAME * sizeof(short);

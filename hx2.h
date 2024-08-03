@@ -76,9 +76,14 @@ const char* hx_format_name(enum hx_format c);
 void hx_audio_stream_init(hx_audio_stream_t *s);
 
 /**
+ * Deallocate an audio stream.
+ */
+void hx_audio_stream_dealloc(hx_audio_stream_t *s);
+
+/**
  * Get the size of audio stream `s` in bytes.
  */
-unsigned int hx_audio_stream_size(const hx_audio_stream_t *s);
+hx_size_t hx_audio_stream_size(const hx_audio_stream_t *s);
 
 /**
  * Write audio stream to .wav file
@@ -258,6 +263,11 @@ typedef struct hx_entry {
  * Initialize an entry
  */
 void hx_entry_init(hx_entry_t *e);
+
+/**
+ * Deallocate entry data
+ */
+void hx_entry_dealloc(hx_entry_t *e);
 
 #pragma mark - Context
 
