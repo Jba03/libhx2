@@ -328,8 +328,7 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   unsigned int pos = s->pos;
   
   char name[HX_STRING_MAX_LENGTH];
-  hx_class_name(entry->i_class, hx->version, name, HX_STRING_MAX_LENGTH);
-  unsigned int length = strlen(name);
+  unsigned int length = hx_class_name(entry->i_class, hx->version, name, HX_STRING_MAX_LENGTH);
   
   if (s->mode == STREAM_MODE_READ) {
     entry->tmp_file_size = entry->file_size - (4 + length + 8);
@@ -438,7 +437,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
       if (!strncmp(data->ext_stream_filename, ".\\", 2)) sprintf(data->ext_stream_filename, "%s", data->ext_stream_filename + 2);
       
       size_t sz = data->ext_stream_size;
-      if (!(audio_stream->data = (int16_t*)hx->read_cb(data->ext_stream_filename, data->ext_stream_offset, &sz, hx->userdata))) {
+      if (!(audio_stream->data = (short*)hx->read_cb(data->ext_stream_filename, data->ext_stream_offset, &sz, hx->userdata))) {
         hx_error(hx, "failed to read from external stream (%s @ 0x%X)", data->ext_stream_filename, data->ext_stream_offset);
         return 0;
       }
@@ -520,10 +519,10 @@ void hx_entry_dealloc(hx_entry_t *e) {
 static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
   int p = hx->stream.pos;
   
-  char classname[256];
-  memset(classname, 0, 256);
-  unsigned int classname_length;
-  if (hx->stream.mode == STREAM_MODE_WRITE) hx_class_name(hx, entry->i_class, classname, &classname_length);
+  char classname[HX_STRING_MAX_LENGTH];
+  memset(classname, 0, HX_STRING_MAX_LENGTH);
+  unsigned int classname_length = 0;
+  if (hx->stream.mode == STREAM_MODE_WRITE) classname_length = hx_class_name(entry->i_class, hx->version, classname, HX_STRING_MAX_LENGTH);
   stream_rw32(&hx->stream, &classname_length);
   
   if (hx->stream.mode == STREAM_MODE_READ) memset(classname, 0, classname_length + 1);

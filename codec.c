@@ -204,7 +204,7 @@ static int dsp_encode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
     for (unsigned int channel = 0; channel < out->info.num_channels; channel++) {
       
       unsigned int samples_to_process = min(num_samples - n * DSP_SAMPLES_PER_FRAME, DSP_SAMPLES_PER_FRAME);
-      memset(samples + 2, 0, DSP_SAMPLES_PER_FRAME * sizeof(int16_t));
+      memset(samples + 2, 0, DSP_SAMPLES_PER_FRAME * sizeof(short));
       
       for (int s = 0; s < samples_to_process; ++s)
         samples[s + 2] = src[n * DSP_SAMPLES_PER_FRAME * out->info.num_channels + (channel + s * out->info.num_channels)];
