@@ -161,6 +161,8 @@ typedef struct EventResData {
   float c[4];
 } HX_EventResData;
 
+#define HX_WAVRES_OBJ_FLAG_MULTIPLE (1 << 1)
+
 /**
  * Superclass to WavResData.
  */

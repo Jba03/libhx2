@@ -256,8 +256,6 @@ static void WavResObj(HX_Context *hx, HX_WavResObj *data) {
   stream_rw8(s, &data->flags);
 }
 
-#define HX_WAVRESDATA_FLAG_MULTIPLE (1 << 1)
-
 static int WavResData(HX_Context *hx, HX_Entry *entry) {
   HX_WavResData *data = hx_entry_data();
   WavResObj(hx, &data->res_data);
@@ -270,8 +268,7 @@ static int WavResData(HX_Context *hx, HX_Entry *entry) {
   
   // 1C = 1, 18 = 1
   // TODO: Figure out the rest of the flags
-  
-  if (data->res_data.flags & HX_WAVRESDATA_FLAG_MULTIPLE) {
+  if (data->res_data.flags & HX_WAVRES_OBJ_FLAG_MULTIPLE) {
     /* default cuuid should be zero on GC */
     if (hx->version == HX_VERSION_HXG) {
       assert(data->default_cuuid == 0);
