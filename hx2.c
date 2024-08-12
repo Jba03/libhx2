@@ -153,6 +153,39 @@ const char* hx_format_name(enum hx_format c) {
   return "invalid-codec";
 }
 
+static const enum hx_language hx_language_from_code(unsigned int code) {
+  switch (code) {
+    case 0x64652020: return HX_LANGUAGE_DE;
+    case 0x656E2020: return HX_LANGUAGE_EN;
+    case 0x65732020: return HX_LANGUAGE_ES;
+    case 0x66722020: return HX_LANGUAGE_FR;
+    case 0x69742020: return HX_LANGUAGE_IT;
+    default: return HX_LANGUAGE_UNKNOWN;
+  }
+}
+
+static const unsigned int hx_language_to_code(const enum hx_language language) {
+  switch (language) {
+    case HX_LANGUAGE_DE: return 0x64652020;
+    case HX_LANGUAGE_EN: return 0x656E2020;
+    case HX_LANGUAGE_ES: return 0x65732020;
+    case HX_LANGUAGE_FR: return 0x66722020;
+    case HX_LANGUAGE_IT: return 0x69742020;
+    default: return 0;
+  }
+}
+
+static const char *const hx_language_name(const enum hx_language language) {
+  switch (language) {
+    case HX_LANGUAGE_DE: return "DE";
+    case HX_LANGUAGE_EN: return "EN";
+    case HX_LANGUAGE_ES: return "ES";
+    case HX_LANGUAGE_FR: return "FR";
+    case HX_LANGUAGE_IT: return "IT";
+    default: return "Unknown Language";
+  }
+}
+
 hx_size_t hx_class_name(enum hx_class class, enum hx_version version, char* buf, hx_size_t buf_sz) {
   const struct hx_version_table_entry v = hx_version_table[version];
   const struct hx_class_table_entry c = hx_class_table[class];
@@ -257,9 +290,10 @@ static int hx_wave_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   }
   
   for (unsigned int i = 0; i < data->num_links; i++) {
-    stream_rw32(&hx->stream, &data->links[i].language);
+    unsigned int language_code = hx_language_to_code(data->links[i].language);
+    stream_rw32(&hx->stream, &language_code);
     stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
-   // unsigned int language_code = HX_BYTESWAP32(data->links[i].language);
+    if (hx->stream.mode == STREAM_MODE_READ) data->links[i].language = hx_language_from_code(language_code);
   }
   
   return 1;
@@ -582,11 +616,9 @@ static void hx_postread(hx_t *hx) {
       for (unsigned int l = 0; l < data->num_links; l++) {
         hx_wave_file_id_object_t *obj = hx_context_find_entry(hx, data->links[l].cuuid)->data;
         
-        unsigned int language = HX_BYTESWAP32(data->links[l].language);
-        
         char buf[HX_STRING_MAX_LENGTH];
         memset(buf, 0, HX_STRING_MAX_LENGTH);
-        snprintf(buf, HX_STRING_MAX_LENGTH, "%s_%.2s", data->res_data.name, (char*)&language);
+        snprintf(buf, HX_STRING_MAX_LENGTH, "%s_%s", data->res_data.name, hx_language_name(data->links[l].language));
         memcpy(obj->name, buf, HX_STRING_MAX_LENGTH);
       }
     }
@@ -660,9 +692,11 @@ static int hx_read(hx_t *hx) {
       entry->language_links = malloc(sizeof(*entry->language_links) * entry->num_languages);
       
       for (int i = 0; i < entry->num_languages; i++) {
-        stream_rw32(s, &entry->language_links[i].code);
+        unsigned int language_code = hx_language_to_code(entry->language_links[i].language);
+        stream_rw32(s, &language_code);
         stream_rw32(s, &entry->language_links[i].unknown);
         stream_rwcuuid(s, &entry->language_links[i].cuuid);
+        if (s->mode == STREAM_MODE_READ) entry->language_links[i].language = hx_language_from_code(language_code);
       }
     }
 
@@ -722,9 +756,12 @@ static int hx_write(hx_t *hx) {
 
       stream_rw32(&index_stream, &entry.num_languages);
       for (int i = 0; i < entry.num_languages; i++) {
-        stream_rw32(&index_stream, &entry.language_links[i].code);
+        unsigned int language_code = hx_language_to_code(entry.language_links[i].language);
+        stream_rw32(&index_stream, &language_code);
         stream_rw32(&index_stream, &entry.language_links[i].unknown);
         stream_rwcuuid(&index_stream, &entry.language_links[i].cuuid);
+        if (index_stream.mode == STREAM_MODE_READ)
+          entry.language_links[i].language = hx_language_from_code(language_code);
       }
     }
   }

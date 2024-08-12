@@ -22,13 +22,7 @@ typedef void (*hx_error_callback_t)(const char* error_str, void* userdata);
 
 #define HX_STRING_MAX_LENGTH  256
 #define HX_INVALID_CUUID 0
-
-#define HX_LANGUAGE_DE 0x20206564
-#define HX_LANGUAGE_EN 0x20206E65
-#define HX_LANGUAGE_ES 0x20207365
-#define HX_LANGUAGE_FR 0x20207266
-#define HX_LANGUAGE_IT 0x20207469
-
+  
 enum hx_version {
   HX_VERSION_HXD, /* M/Arena */
   HX_VERSION_HXC, /* R3 PC */
@@ -39,7 +33,14 @@ enum hx_version {
   HX_VERSION_INVALID,
 };
 
-#pragma mark - Audio
+enum hx_language {
+  HX_LANGUAGE_DE,
+  HX_LANGUAGE_EN,
+  HX_LANGUAGE_ES,
+  HX_LANGUAGE_FR,
+  HX_LANGUAGE_IT,
+  HX_LANGUAGE_UNKNOWN,
+};
 
 enum hx_format {
   HX_FORMAT_PCM  = 0x01, /* PCM */
@@ -49,6 +50,8 @@ enum hx_format {
   HX_FORMAT_IMA  = 0x05, /* MS IMA ADPCM */
   HX_FORMAT_MP3  = 0x55,
 };
+
+#pragma mark - Audio
 
 typedef struct hx_audio_stream_info {
   unsigned char num_channels;
@@ -146,13 +149,12 @@ typedef struct hx_wav_resource_object {
  */
 typedef struct hx_wav_resource_data {
   hx_wav_resource_object_t res_data;
-  /** Default link CUUID. If this exists,
-   * there are usually no language links. */
+  /** Default link CUUID. */
   hx_cuuid_t default_cuuid;
   /** Number of language links. */
   unsigned int num_links;
   /* Language links to WaveFileIdObj entries  */
-  HX_LINK(unsigned int language) links;
+  HX_LINK(enum hx_language language) links;
 } hx_wav_resource_data_t;
 
 /**
@@ -247,8 +249,8 @@ typedef struct hx_entry {
   
   /** Number of languages */
   unsigned int num_languages;
-  /** Language codes */
-  HX_LINK(unsigned int code, unknown) language_links;
+  /** Language links */
+  HX_LINK(enum hx_language language, unknown) language_links;
   
   /** File offset when writing */
   unsigned int file_offset;
