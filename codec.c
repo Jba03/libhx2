@@ -132,7 +132,7 @@ static int dsp_decode(const HX_AudioStream *in, HX_AudioStream *out) {
     dst += DSP_SAMPLES_PER_FRAME * out->info.num_channels;
   }
   
-  return 1;
+  return 0;
 }
 
 static void dsp_frame_encode(signed short pcm[16], unsigned int num_samples, signed char adpcm[DSP_BYTES_PER_FRAME]) {
@@ -320,5 +320,5 @@ static int psx_decode(const HX_AudioStream *in, HX_AudioStream *out) {
     }
   }
   
-  return 1;
+  return 0;
 }

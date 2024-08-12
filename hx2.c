@@ -64,7 +64,7 @@ int hx_audio_stream_write_wav(const HX_Context *hx, HX_AudioStream *s, const cha
   hx->write_cb(filename, wave_stream.buf, 0, &sz, hx->userdata);
   stream_dealloc(&wave_stream);
   
-  return 1;
+  return 0;
 }
 
 HX_Size hx_audio_stream_size(const HX_AudioStream *s) {
@@ -78,15 +78,11 @@ HX_Size hx_audio_stream_size(const HX_AudioStream *s) {
   }
 }
 
-int hx_audio_convert(const HX_AudioStream* i_stream, HX_AudioStream* o_stream) {
-  enum HX_AudioFormat got_fmt = i_stream->info.fmt;
-  enum HX_AudioFormat wanted_fmt = o_stream->info.fmt;
-  if (got_fmt == HX_AUDIO_FORMAT_PCM && wanted_fmt == HX_AUDIO_FORMAT_PCM) { *o_stream = *i_stream; return 1; };
-  if (got_fmt == HX_AUDIO_FORMAT_DSP && wanted_fmt == HX_AUDIO_FORMAT_PCM) return dsp_decode(i_stream, o_stream);
-  if (got_fmt == HX_AUDIO_FORMAT_PSX && wanted_fmt == HX_AUDIO_FORMAT_PCM) return psx_decode(i_stream, o_stream);
-  
-  if (got_fmt == HX_AUDIO_FORMAT_PCM && wanted_fmt == HX_AUDIO_FORMAT_DSP) return dsp_encode(i_stream, o_stream);
-  
+int hx_audio_convert(const HX_AudioStream *in, HX_AudioStream *out) {
+  if (in->info.fmt == HX_AUDIO_FORMAT_PCM && out->info.fmt == HX_AUDIO_FORMAT_PCM) { *out = *in; return 0; };
+  if (in->info.fmt == HX_AUDIO_FORMAT_DSP && out->info.fmt == HX_AUDIO_FORMAT_PCM) return dsp_decode(in, out);
+  if (in->info.fmt == HX_AUDIO_FORMAT_PSX && out->info.fmt == HX_AUDIO_FORMAT_PCM) return psx_decode(in, out);
+  if (in->info.fmt == HX_AUDIO_FORMAT_PCM && out->info.fmt == HX_AUDIO_FORMAT_DSP) return dsp_encode(in, out);
   return -1;
 }
 
@@ -141,7 +137,7 @@ int hx_error(const HX_Context *hx, const char* format, ...) {
   hx->error_cb(buf, hx->userdata);
   printf("\n");
   va_end(args);
-  return 0;
+  return -1;
 }
 
 const char* hx_audio_format_name(enum HX_AudioFormat c) {
@@ -228,7 +224,7 @@ static int EventResData(HX_Context *hx, HX_Entry *entry) {
   stream_rwfloat(&hx->stream, data->c + 1);
   stream_rwfloat(&hx->stream, data->c + 2);
   stream_rwfloat(&hx->stream, data->c + 3);
-  return 1;
+  return 0;
 }
 
 static void EventResData_Free(HX_Entry *entry) {
@@ -287,7 +283,7 @@ static int WavResData(HX_Context *hx, HX_Entry *entry) {
     if (hx->stream.mode == STREAM_MODE_READ) data->links[i].language = hx_language_from_code(language_code);
   }
   
-  return 1;
+  return 0;
 }
 
 static void WavResData_Free(HX_Entry *entry) {
@@ -313,7 +309,7 @@ static int SwitchResData(HX_Context *hx, HX_Entry *entry) {
     stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
   }
   
-  return 1;
+  return 0;
 }
 
 static void SwitchResData_Free(HX_Entry *entry) {
@@ -338,7 +334,7 @@ static int RandomResData(HX_Context *hx, HX_Entry *entry) {
     stream_rwcuuid(&hx->stream, &data->links[i].cuuid);
   }
   
-  return 1;
+  return 0;
 }
 
 static void RandomResData_Free(HX_Entry *entry) {
@@ -388,7 +384,7 @@ static int ProgramResData(HX_Context *hx, HX_Entry *entry) {
     }
   }
   
-  return 1;
+  return 0;
 }
 
 static void ProgramResData_Free(HX_Entry *entry) {
@@ -426,8 +422,7 @@ static int WaveFileIdObj(HX_Context *hx, HX_Entry *entry) {
   
   if (hx->stream.mode == STREAM_MODE_READ) data->_wave_header = malloc(sizeof(struct waveformat_header));
   if (!waveformat_header_rw(&hx->stream, data->_wave_header)) {
-    hx_error(hx, "failed to read wave format header");
-    return 0;
+    return hx_error(hx, "failed to read wave format header");
   }
   
   HX_AudioStream *audio_stream = (hx->stream.mode == STREAM_MODE_READ) ? malloc(sizeof(*audio_stream)) : data->audio_stream;
@@ -460,8 +455,7 @@ static int WaveFileIdObj(HX_Context *hx, HX_Entry *entry) {
       
       size_t sz = data->ext_stream_size;
       if (!(audio_stream->data = (short*)hx->read_cb(data->ext_stream_filename, data->ext_stream_offset, &sz, hx->userdata))) {
-        hx_error(hx, "failed to read from external stream (%s @ 0x%X)", data->ext_stream_filename, data->ext_stream_offset);
-        return 0;
+        return hx_error(hx, "failed to read from external stream (%s @ 0x%X)", data->ext_stream_filename, data->ext_stream_offset);
       }
     } else if (hx->stream.mode == STREAM_MODE_WRITE) {
       
@@ -497,7 +491,7 @@ static int WaveFileIdObj(HX_Context *hx, HX_Entry *entry) {
     if (data->_extra_wave_data) stream_rw(&hx->stream, data->_extra_wave_data, data->_extra_wave_data_length);
   }
   
-  return 1;
+  return 0;
 }
 
 static void WaveFileIdObj_Free(HX_Entry *entry) {
@@ -553,20 +547,20 @@ static int hx_entry_rw(HX_Context *hx, HX_Entry *entry) {
   if (hx->stream.mode == STREAM_MODE_READ) {
     enum HX_Class hclass = hx_class_from_string(classname);
     if (hclass != entry->i_class) {
-      fprintf(stderr, "[libhx] header class name does not match index class name (%X != %X)\n", entry->i_class, hclass);
-      return -1;
+      return hx_error(hx, "header class name does not match index class name (%X != %X)\n", entry->i_class, hclass);
     }
   }
   
   unsigned long long cuuid = entry->i_cuuid;
   stream_rwcuuid(&hx->stream, &cuuid);
   if (cuuid != entry->i_cuuid) {
-    fprintf(stderr, "[libhx] header cuuid does not match index cuuid (%016llX != %016llX)\n", entry->i_cuuid, cuuid);
-    return -1;
+    return hx_error(hx, "header cuuid does not match index cuuid (%016llX != %016llX)\n", entry->i_cuuid, cuuid);
   }
   
   if (entry->i_class != HX_CLASS_INVALID) {
-    if (!hx_class_table[entry->i_class].rw(hx, entry)) return -1;
+    if (hx_class_table[entry->i_class].rw(hx, entry) != 0) {
+      return hx_error(hx, "invalid class '%d'\n", entry->i_class);
+    }
   }
   
   return (hx->stream.pos - p);
@@ -690,7 +684,7 @@ static int hx_read(HX_Context *hx) {
   
   hx_postread(hx);
   
-  return 1;
+  return 0;
 }
 
 static int hx_write(HX_Context *hx) {
@@ -762,7 +756,7 @@ static int hx_write(HX_Context *hx) {
   
   stream_dealloc(&index_stream);
 
-  return 1;
+  return 0;
 }
 
 HX_Context *hx_context_alloc() {
@@ -782,8 +776,7 @@ void hx_context_callback(HX_Context *hx, HX_ReadCallback read, HX_WriteCallback 
 
 int hx_context_open(HX_Context *hx, const char* filename) {
   if (!filename) {
-    hx_error(hx, "invalid filename", filename);
-    return 0;
+    return hx_error(hx, "invalid filename", filename);
   }
   
   const char* ext = strrchr(filename, '.');
@@ -800,22 +793,22 @@ int hx_context_open(HX_Context *hx, const char* filename) {
   size_t size = SIZE_MAX;
   char* data = hx->read_cb(filename, 0, &size, hx->userdata);
   if (!data) {
-    hx_error(hx, "failed to read %s", filename);
-    return 0;
+    return hx_error(hx, "failed to read %s", filename);
   }
   
   if (hx->version == HX_VERSION_INVALID) {
-    hx_error(hx, "invalid hx file version");
-    return 0;
+    return hx_error(hx, "invalid hx file version");
   }
   
   stream_t stream = stream_create(data, size, STREAM_MODE_READ, hx_version_table[hx->version].endianness);
   hx->stream = stream;
   
-  if (!hx_read(hx)) return 0;
-  
+  if (hx_read(hx) != 0)
+    goto fail;
+  return 0;
+fail:
   free(data);
-  
+  return -1;
 }
 
 void hx_context_write(HX_Context *hx, const char* filename, enum HX_Version version) {
