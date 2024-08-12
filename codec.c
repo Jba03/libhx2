@@ -235,3 +235,93 @@ static int dsp_encode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
   
   return 0;
 }
+
+
+#pragma mark - PSX ADPCM
+
+#define PSX_BYTES_PER_FRAME 16
+#define PSX_SAMPLE_BYTES_PER_FRAME 14
+#define PSX_SAMPLES_PER_FRAME 28
+
+static const float psx_adpcm_coefficients[16][2] = {
+  { 0.0       ,  0.0       },
+  { 0.9375    ,  0.0       },
+  { 1.796875  , -0.8125    },
+  { 1.53125   , -0.859375  },
+  { 1.90625   , -0.9375    },
+  { 0.46875   , -0.0       },
+  { 0.8984375 , -0.40625   },
+  { 0.765625  , -0.4296875 },
+  { 0.953125  , -0.46875   },
+  { 0.234375  , -0.0       },
+  { 0.44921875, -0.203125  },
+  { 0.3828125 , -0.21484375},
+  { 0.4765625 , -0.234375  },
+  { 0.5       , -0.9375    },
+  { 0.234375  , -0.9375    },
+  { 0.109375  , -0.9375    },
+};
+
+static const hx_size_t psx_sample_count(hx_size_t sz, int ch) {
+  return sz / ch / PSX_BYTES_PER_FRAME * PSX_SAMPLES_PER_FRAME;
+}
+
+/** Size of decoded psx stream */
+static hx_size_t psx_pcm_size(hx_size_t sample_count) {
+  unsigned int frames = sample_count / PSX_SAMPLES_PER_FRAME;
+  if (sample_count % PSX_SAMPLES_PER_FRAME) frames++;
+  return frames * PSX_SAMPLES_PER_FRAME * sizeof(short);
+}
+
+static int psx_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
+  stream_t stream = stream_create(in->data, in->size, STREAM_MODE_READ, in->info.endianness);
+  hx_size_t total_samples = psx_sample_count(in->size, in->info.num_channels);
+  
+  signed int history[in->info.num_channels][2];
+  memset(history, 0, in->info.num_channels * 2);
+  
+  audio_stream_info_copy(&out->info, &in->info);
+  out->info.fmt = HX_FORMAT_PCM;
+  out->info.num_samples = total_samples;
+  out->size = psx_pcm_size(total_samples);
+  out->data = malloc(out->size);
+  out->wavefile_cuuid = in->wavefile_cuuid;
+  
+  short* dst = out->data;
+  char* src = stream.buf + stream.pos;
+  int num_frames = ((total_samples + PSX_SAMPLES_PER_FRAME - 1) / PSX_SAMPLES_PER_FRAME);
+  
+  for (int i = 0; i < num_frames; dst += PSX_SAMPLES_PER_FRAME * out->info.num_channels, i++) {
+    for (int c = 0; c < out->info.num_channels; src += PSX_SAMPLE_BYTES_PER_FRAME, c++) {
+      const unsigned char predict = (*src >> 4) & 0xF;
+      const unsigned char shift = (*src++ >> 0) & 0xF;
+      const unsigned char flags = (*src++);
+      
+      if (predict > 4) return -1;
+      
+      signed int hst1 = history[c][0];
+      signed int hst2 = history[c][1];
+      signed int expanded[PSX_SAMPLES_PER_FRAME];
+      for (signed int y=0; y<PSX_SAMPLE_BYTES_PER_FRAME; y++) {
+        expanded[y*2+0] = (src[y] & 0xF);
+        expanded[y*2+1] = (src[y] & 0xF0) >> 4;
+      }
+      
+      for (signed int s=0; s<PSX_SAMPLES_PER_FRAME; s++) {
+        int sample = expanded[s] << 12;
+        if ((sample & 0x8000) != 0) {
+          sample = (int)(sample | 0xFFFF0000);
+        }
+        
+        double output = (sample >> shift) + hst1 * psx_adpcm_coefficients[predict][0] + hst2 * psx_adpcm_coefficients[predict][1];
+        hst2 = hst1;
+        dst[s * out->info.num_channels + c] = hst1 = ((short)(min(SHRT_MAX, max(output, SHRT_MIN))));
+      }
+      
+      history[c][0] = hst1;
+      history[c][1] = hst2;
+    }
+  }
+  
+  return 1;
+}

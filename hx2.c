@@ -77,10 +77,15 @@ hx_size_t hx_audio_stream_size(const hx_audio_stream_t *s) {
 }
 
 int hx_audio_convert(const hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream) {
-  enum hx_format got = i_stream->info.fmt;
-  enum hx_format wanted = o_stream->info.fmt;
-  if (got == HX_FORMAT_DSP && wanted == HX_FORMAT_PCM) return dsp_decode(i_stream, o_stream);
-  if (got == HX_FORMAT_PCM && wanted == HX_FORMAT_DSP) return dsp_encode(i_stream, o_stream);
+  enum hx_format got_fmt = i_stream->info.fmt;
+  enum hx_format wanted_fmt = o_stream->info.fmt;
+  /* Decode */
+  if (got_fmt == HX_FORMAT_PCM && wanted_fmt == HX_FORMAT_PCM) { *o_stream = *i_stream; return 1; };
+  if (got_fmt == HX_FORMAT_DSP && wanted_fmt == HX_FORMAT_PCM) return dsp_decode(i_stream, o_stream);
+  if (got_fmt == HX_FORMAT_PSX && wanted_fmt == HX_FORMAT_PCM) return psx_decode(i_stream, o_stream);
+  /* Encode */
+  if (got_fmt == HX_FORMAT_PCM && wanted_fmt == HX_FORMAT_DSP) return dsp_encode(i_stream, o_stream);
+  
   return -1;
 }
 
@@ -348,8 +353,13 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
         stream_t s = stream_create(++p, sizeof(hx_cuuid_t), STREAM_MODE_READ, hx->stream.endianness);
         hx_cuuid_t cuuid;
         stream_rwcuuid(&s, &cuuid);
-        unsigned int c = (cuuid & 0xFFFFFFFF00000000) >> 32;
         
+        if (hx->version == HX_VERSION_HX2) {
+          hx_cuuid_t tmp = HX_BYTESWAP32((uint32_t)((cuuid & 0xFFFFFFFF00000000) >> 32));
+          cuuid = HX_BYTESWAP32((uint32_t)(cuuid & 0xFFFFFFFF)) | (tmp << 32);
+        }
+        
+        unsigned int c = (cuuid & 0xFFFFFFFF00000000) >> 32;
         if (c == 3) {
           data->links[data->num_links++] = cuuid;
         }
@@ -608,8 +618,8 @@ static int hx_read(hx_t *hx) {
     return hx_error(hx, "file contains no entries\n");
   }
     
-  hx->num_entries = num_entries;
-  hx->entries = malloc(sizeof(hx_entry_t) * hx->num_entries);
+  hx->num_entries += num_entries;
+  hx->entries = realloc(hx->entries, sizeof(hx_entry_t) * hx->num_entries);
   
   while (num_entries--) {
     unsigned int classname_length;
@@ -743,6 +753,8 @@ static int hx_write(hx_t *hx) {
 hx_t *hx_context_alloc() {
   hx_t *hx = malloc(sizeof(*hx));
   hx->version = HX_VERSION_INVALID;
+  hx->entries = NULL;
+  hx->num_entries = 0;
   return hx;
 }
 
