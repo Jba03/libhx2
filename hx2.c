@@ -29,7 +29,7 @@ struct hx {
   void* userdata;
 };
 
-#pragma mark - Audio stream
+#pragma mark - Audio
 
 void hx_audio_stream_init(hx_audio_stream_t *s) {
   s->info.fmt = HX_FORMAT_PCM;
@@ -215,9 +215,7 @@ hx_entry_t *hx_context_find_entry(const hx_t *hx, hx_cuuid_t cuuid) {
 #define hx_entry_data() \
   (entry->data = (hx->stream.mode == STREAM_MODE_WRITE ? entry->data : malloc(sizeof(*data))))
 
-#pragma mark - EventResData
-
-static int hx_event_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
+static int EventResData(hx_t *hx, hx_entry_t *entry) {
   hx_event_resource_data_t *data = hx_entry_data();
   unsigned int name_length = strlen(data->name);
   stream_rw32(&hx->stream, &data->type);
@@ -232,13 +230,11 @@ static int hx_event_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   return 1;
 }
 
-static void hx_event_resource_data_free(hx_entry_t *entry) {
+static void EventResData_Free(hx_entry_t *entry) {
   free(entry->data);
 }
 
-#pragma mark - WavResObj
-
-static void hx_wav_resource_obj_rw(hx_t *hx, hx_wav_resource_object_t *data) {
+static void WavResObj(hx_t *hx, hx_wav_resource_object_t *data) {
   stream_t *s = &hx->stream;
   stream_rw32(s, &data->id);
   
@@ -259,14 +255,11 @@ static void hx_wav_resource_obj_rw(hx_t *hx, hx_wav_resource_object_t *data) {
   stream_rw8(s, &data->flags);
 }
 
-#pragma mark - WavResData
-
 #define HX_WAVRESDATA_FLAG_MULTIPLE (1 << 1)
 
-static int hx_wave_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
+static int WavResData(hx_t *hx, hx_entry_t *entry) {
   hx_wav_resource_data_t *data = hx_entry_data();
-  /* read parent class (WavResObj) */
-  hx_wav_resource_obj_rw(hx, &data->res_data);
+  WavResObj(hx, &data->res_data);
   /* number of links are 0 by default */
   if (hx->stream.mode == STREAM_MODE_READ) {
     data->num_links = 0;
@@ -299,15 +292,13 @@ static int hx_wave_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   return 1;
 }
 
-static void hx_wave_resource_data_free(hx_entry_t *entry) {
+static void WavResData_Free(hx_entry_t *entry) {
   hx_wav_resource_data_t *data = entry->data;
   free(data->links);
   free(entry->data);
 }
 
-#pragma mark - SwitchResData
-
-static int hx_switch_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
+static int SwitchResData(hx_t *hx, hx_entry_t *entry) {
   hx_switch_resource_data_t *data = hx_entry_data();
   stream_rw32(&hx->stream, &data->flag);
   stream_rw32(&hx->stream, &data->unknown);
@@ -325,15 +316,13 @@ static int hx_switch_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   }
 }
 
-static void hx_switch_resource_data_free(hx_entry_t *entry) {
+static void SwitchResData_Free(hx_entry_t *entry) {
   hx_switch_resource_data_t *data = entry->data;
   free(data->links);
   free(entry->data);
 }
 
-#pragma mark - RandomResData
-
-static int hx_random_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
+static int RandomResData(hx_t *hx, hx_entry_t *entry) {
   hx_random_resource_data_t *data = hx_entry_data();
   stream_rw32(&hx->stream, &data->flags);
   stream_rwfloat(&hx->stream, &data->offset);
@@ -352,15 +341,13 @@ static int hx_random_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   return 1;
 }
 
-static void hx_random_resource_data_free(hx_entry_t *entry) {
+static void RandomResData_Free(hx_entry_t *entry) {
   hx_random_resource_data_t *data = entry->data;
   free(data->links);
   free(entry->data);
 }
 
-#pragma mark - ProgramResData
-
-static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
+static int ProgramResData(hx_t *hx, hx_entry_t *entry) {
   hx_program_resource_data_t *data = hx_entry_data();
   stream_t *s = &hx->stream;
   
@@ -404,18 +391,16 @@ static int hx_program_resource_data_rw(hx_t *hx, hx_entry_t *entry) {
   return 1;
 }
 
-static void hx_program_resource_data_free(hx_entry_t *entry) {
+static void ProgramResData_Free(hx_entry_t *entry) {
   hx_program_resource_data_t *data = entry->data;
   free(data->data);
   free(entry->data);
 }
 
-#pragma mark - SuperClass: IdObjPtr
-
 #define HX_ID_OBJECT_POINTER_FLAG_EXTERNAL  (1 << 0)
 #define HX_ID_OBJECT_POINTER_FLAG_BIG_FILE  (1 << 1)
 
-static void hx_id_obj_pointer_rw(hx_t *hx, hx_id_object_pointer_t *data) {
+static void IdObjPtrRW(hx_t *hx, hx_id_object_pointer_t *data) {
   stream_t *s = &hx->stream;
   stream_rw32(s, &data->id);
   stream_rwfloat(s, &data->unknown);
@@ -429,13 +414,9 @@ static void hx_id_obj_pointer_rw(hx_t *hx, hx_id_object_pointer_t *data) {
   }
 }
 
-#pragma mark - WaveFileIdObj
-
-/* Read a WaveFileIdObj entry */
-static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
-  //stream_t *s = &hx->stream;
+static int WaveFileIdObj(hx_t *hx, hx_entry_t *entry) {
   hx_wave_file_id_object_t *data = hx_entry_data();
-  hx_id_obj_pointer_rw(hx, &data->id_obj);
+  IdObjPtrRW(hx, &data->id_obj);
   
   if (data->id_obj.flags & HX_ID_OBJECT_POINTER_FLAG_EXTERNAL) {
     unsigned int name_length = strlen(data->ext_stream_filename);
@@ -522,7 +503,7 @@ static int hx_wave_file_id_obj_rw(hx_t *hx, hx_entry_t *entry) {
   return 1;
 }
 
-static void hx_wave_file_id_obj_free(hx_entry_t *entry) {
+static void WaveFileIdObj_Free(hx_entry_t *entry) {
   hx_wave_file_id_object_t *data = entry->data;
   hx_audio_stream_dealloc(data->audio_stream);
   if (data->extra_wave_data) free(data->extra_wave_data);
@@ -532,12 +513,12 @@ static void hx_wave_file_id_obj_free(hx_entry_t *entry) {
 }
 
 static const struct hx_class_table_entry hx_class_table[] = {
-  [HX_CLASS_EVENT_RESOURCE_DATA] = {"EventResData", 1, hx_event_resource_data_rw, hx_event_resource_data_free},
-  [HX_CLASS_WAVE_RESOURCE_DATA] = {"WavResData", 0, hx_wave_resource_data_rw, hx_wave_resource_data_free},
-  [HX_CLASS_SWITCH_RESOURCE_DATA] = {"SwitchResData", 1, hx_switch_resource_data_rw, hx_switch_resource_data_free},
-  [HX_CLASS_RANDOM_RESOURCE_DATA] = {"RandomResData", 1, hx_random_resource_data_rw, hx_random_resource_data_free},
-  [HX_CLASS_PROGRAM_RESOURCE_DATA] = {"ProgramResData", 1, hx_program_resource_data_rw, hx_program_resource_data_free},
-  [HX_CLASS_WAVE_FILE_ID_OBJECT] = {"WaveFileIdObj", 0, hx_wave_file_id_obj_rw, hx_wave_file_id_obj_free},
+  [HX_CLASS_EVENT_RESOURCE_DATA] = {"EventResData", 1, EventResData, EventResData_Free},
+  [HX_CLASS_WAVE_RESOURCE_DATA] = {"WavResData", 0, WavResData, WavResData_Free},
+  [HX_CLASS_SWITCH_RESOURCE_DATA] = {"SwitchResData", 1, SwitchResData, SwitchResData_Free},
+  [HX_CLASS_RANDOM_RESOURCE_DATA] = {"RandomResData", 1, RandomResData, RandomResData_Free},
+  [HX_CLASS_PROGRAM_RESOURCE_DATA] = {"ProgramResData", 1, ProgramResData, ProgramResData_Free},
+  [HX_CLASS_WAVE_FILE_ID_OBJECT] = {"WaveFileIdObj", 0, WaveFileIdObj, WaveFileIdObj_Free},
 };
 
 #pragma mark - Entry
@@ -593,6 +574,8 @@ static int hx_entry_rw(hx_t *hx, hx_entry_t *entry) {
   
   return (hx->stream.pos - p);
 }
+
+#pragma mark - HX
 
 static void hx_postread(hx_t *hx) {
   if (hx->version == HX_VERSION_HXG) {
@@ -784,8 +767,6 @@ static int hx_write(hx_t *hx) {
 
   return 1;
 }
-
-#pragma mark - HX
 
 hx_t *hx_context_alloc() {
   hx_t *hx = malloc(sizeof(*hx));
