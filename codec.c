@@ -10,10 +10,10 @@
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
 
-int hx_error(const hx_t *hx, const char* format, ...);
+int hx_error(const HX_Context *, const char* format, ...);
 
-static void audio_stream_info_copy(hx_audio_stream_info_t *dst, const hx_audio_stream_info_t *src) {
-  memcpy(dst, src, sizeof(hx_audio_stream_info_t));
+static void audio_stream_info_copy(struct HX_AudioStreamInfo *dst, const struct HX_AudioStreamInfo *src) {
+  memcpy(dst, src, sizeof(struct HX_AudioStreamInfo));
 }
 
 #pragma mark - DSP ADPCM
@@ -73,13 +73,13 @@ static int dsp_byte_count(int samples) {
 }
 
 /** Size of decoded dsp stream */
-static hx_size_t dsp_pcm_size(hx_size_t sample_count) {
+static HX_Size dsp_pcm_size(const HX_Size sample_count) {
   unsigned int frames = sample_count / DSP_SAMPLES_PER_FRAME;
   if (sample_count % DSP_SAMPLES_PER_FRAME) frames++;
   return frames * DSP_SAMPLES_PER_FRAME * sizeof(short);
 }
 
-static int dsp_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
+static int dsp_decode(const HX_AudioStream *in, HX_AudioStream *out) {
   stream_t stream = stream_create(in->data, in->size, STREAM_MODE_READ, in->info.endianness);
   
   unsigned int total_samples = 0;
@@ -92,11 +92,10 @@ static int dsp_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
   }
   
   audio_stream_info_copy(&out->info, &in->info);
-  out->info.fmt = HX_FORMAT_PCM;
+  out->info.fmt = HX_AUDIO_FORMAT_PCM;
   out->info.num_samples = total_samples;
   out->size = dsp_pcm_size(total_samples);
   out->data = malloc(out->size);
-  out->wavefile_cuuid = in->wavefile_cuuid;
   
   short* dst = out->data;
   char* src = stream.buf + stream.pos;
@@ -139,7 +138,7 @@ static int dsp_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
 static void dsp_frame_encode(signed short pcm[16], unsigned int num_samples, signed char adpcm[DSP_BYTES_PER_FRAME]) {
   int inSamples[16] = { pcm[0], pcm[1] };
   int outSamples[14], scale, v1, v2, v3, index, distance;
-  double acc;
+  double acc = 0.0f;
   
   for (int s = 0; s < num_samples; s++) {
     inSamples[s + 2] = v1 = ((pcm[s] * 0.0f) + (pcm[s + 1] * 0.0f)) / 2048;
@@ -179,16 +178,15 @@ static void dsp_frame_encode(signed short pcm[16], unsigned int num_samples, sig
   for (int y = 0; y < 7; y++) adpcm[y+1] = (char)((outSamples[y*2]<<4) | (outSamples[y*2+1]&0xF));
 }
 
-static int dsp_encode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
+static int dsp_encode(const HX_AudioStream *in, HX_AudioStream *out) {
   unsigned int num_samples = in->info.num_samples;
   unsigned int framecount = (num_samples / DSP_SAMPLES_PER_FRAME) + (num_samples % DSP_SAMPLES_PER_FRAME != 0);
   unsigned int output_stream_size = framecount * DSP_BYTES_PER_FRAME * in->info.num_channels + in->info.num_channels * DSP_HEADER_SIZE;
   output_stream_size *= 2;
   
   audio_stream_info_copy(&out->info, &in->info);
-  out->info.fmt = HX_FORMAT_DSP;
+  out->info.fmt = HX_AUDIO_FORMAT_DSP;
   out->info.endianness = HX_BIG_ENDIAN;
-  out->wavefile_cuuid = in->wavefile_cuuid;
   
   stream_t output_stream = stream_alloc(output_stream_size, STREAM_MODE_WRITE, out->info.endianness);
   out->data = (signed short*)output_stream.buf;
@@ -262,30 +260,29 @@ static const float psx_adpcm_coefficients[16][2] = {
   { 0.109375  , -0.9375    },
 };
 
-static const hx_size_t psx_sample_count(hx_size_t sz, int ch) {
+static const HX_Size psx_sample_count(const HX_Size sz, const int ch) {
   return sz / ch / PSX_BYTES_PER_FRAME * PSX_SAMPLES_PER_FRAME;
 }
 
 /** Size of decoded psx stream */
-static hx_size_t psx_pcm_size(hx_size_t sample_count) {
+static const HX_Size psx_pcm_size(const HX_Size sample_count) {
   unsigned int frames = sample_count / PSX_SAMPLES_PER_FRAME;
   if (sample_count % PSX_SAMPLES_PER_FRAME) frames++;
   return frames * PSX_SAMPLES_PER_FRAME * sizeof(short);
 }
 
-static int psx_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
+static int psx_decode(const HX_AudioStream *in, HX_AudioStream *out) {
   stream_t stream = stream_create(in->data, in->size, STREAM_MODE_READ, in->info.endianness);
-  hx_size_t total_samples = psx_sample_count(in->size, in->info.num_channels);
+  const HX_Size total_samples = psx_sample_count(in->size, in->info.num_channels);
   
   signed int history[in->info.num_channels][2];
   memset(history, 0, in->info.num_channels * 2);
   
   audio_stream_info_copy(&out->info, &in->info);
-  out->info.fmt = HX_FORMAT_PCM;
+  out->info.fmt = HX_AUDIO_FORMAT_PCM;
   out->info.num_samples = total_samples;
   out->size = psx_pcm_size(total_samples);
   out->data = malloc(out->size);
-  out->wavefile_cuuid = in->wavefile_cuuid;
   
   short* dst = out->data;
   char* src = stream.buf + stream.pos;
@@ -295,7 +292,7 @@ static int psx_decode(const hx_audio_stream_t *in, hx_audio_stream_t *out) {
     for (int c = 0; c < out->info.num_channels; src += PSX_SAMPLE_BYTES_PER_FRAME, c++) {
       const unsigned char predict = (*src >> 4) & 0xF;
       const unsigned char shift = (*src++ >> 0) & 0xF;
-      const unsigned char flags = (*src++);
+      const unsigned char __unused flags = (*src++);
       
       if (predict > 4) return -1;
       

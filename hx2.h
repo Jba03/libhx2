@@ -12,28 +12,30 @@
 extern "C" {
 #endif
 
-typedef struct hx hx_t;
-typedef unsigned long long hx_cuuid_t;
-typedef unsigned int hx_size_t;
+#define HX_INVALID_CUUID 0x0ull
+#define HX_STRING_MAX_LENGTH 256
 
-typedef char* (*hx_read_callback_t)(const char* filename, size_t pos, size_t *size, void* userdata);
-typedef void (*hx_write_callback_t)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
-typedef void (*hx_error_callback_t)(const char* error_str, void* userdata);
+typedef unsigned int HX_Size;
+/** A 64-bit unique identifier */
+typedef unsigned long long HX_CUUID;
+typedef char HX_String[HX_STRING_MAX_LENGTH];
+typedef struct HX_Context HX_Context;
 
-#define HX_STRING_MAX_LENGTH  256
-#define HX_INVALID_CUUID 0
-  
-enum hx_version {
-  HX_VERSION_HXD, /* M/Arena */
-  HX_VERSION_HXC, /* R3 PC */
-  HX_VERSION_HX2, /* R3 PS2 */
-  HX_VERSION_HXG, /* R3 GCN */
-  HX_VERSION_HXX, /* R3 XBOX (+HD) */
-  HX_VERSION_HX3, /* R3 PS3 HD */
+typedef char*(*HX_ReadCallback)(const char* filename, size_t pos, size_t *size, void* userdata);
+typedef void (*HX_WriteCallback)(const char* filename, void* data, size_t pos, size_t *size, void* userdata);
+typedef void (*HX_ErrorCallback)(const char* error_str, void* userdata);
+
+enum HX_Version {
+  HX_VERSION_HXD, /**< M/Arena */
+  HX_VERSION_HXC, /**< R3 PC */
+  HX_VERSION_HX2, /**< R3 PS2 */
+  HX_VERSION_HXG, /**< R3 GCN */
+  HX_VERSION_HXX, /**< R3 XBOX (+HD) */
+  HX_VERSION_HX3, /**< R3 PS3 HD */
   HX_VERSION_INVALID,
 };
 
-enum hx_language {
+enum HX_Language {
   HX_LANGUAGE_DE,
   HX_LANGUAGE_EN,
   HX_LANGUAGE_ES,
@@ -42,69 +44,98 @@ enum hx_language {
   HX_LANGUAGE_UNKNOWN,
 };
 
-enum hx_format {
-  HX_FORMAT_PCM  = 0x01, /* PCM */
-  HX_FORMAT_UBI  = 0x02, /* UBI ADPCM */
-  HX_FORMAT_PSX  = 0x03, /* PS ADPCM */
-  HX_FORMAT_DSP  = 0x04, /* GC 4-bit ADPCM */
-  HX_FORMAT_IMA  = 0x05, /* MS IMA ADPCM */
-  HX_FORMAT_MP3  = 0x55,
-};
-
 #pragma mark - Audio
 
-typedef struct hx_audio_stream_info {
-  unsigned char num_channels;
-  unsigned char endianness;
-  unsigned int sample_rate;
-  unsigned int num_samples;
-  enum hx_format fmt;
-} hx_audio_stream_info_t;
+enum HX_AudioFormat {
+  HX_AUDIO_FORMAT_PCM  = 0x01, /**< PCM s16 */
+  HX_AUDIO_FORMAT_UBI  = 0x02, /**< UBI ADPCM */
+  HX_AUDIO_FORMAT_PSX  = 0x03, /**< PS ADPCM */
+  HX_AUDIO_FORMAT_DSP  = 0x04, /**< GC 4-bit ADPCM */
+  HX_AUDIO_FORMAT_IMA  = 0x05, /**< MS IMA ADPCM */
+  HX_AUDIO_FORMAT_MP3  = 0x55, /**< MPEG.3 */
+};
 
-typedef struct hx_audio_stream {
-  hx_size_t size;
+typedef struct HX_AudioStream {
+  struct HX_AudioStreamInfo {
+    /**
+     * Number of channels.
+     */
+    unsigned char num_channels;
+    
+    /**
+     * Sample endianness
+     */
+    unsigned char endianness;
+    
+    /**
+     * Sample rate. Usually 11025 or 22050 Hz
+     */
+    unsigned int sample_rate;
+    
+    /**
+     * Sample count.
+     */
+    unsigned int num_samples;
+    
+    /**
+     * Audio format
+     */
+    enum HX_AudioFormat fmt;
+    
+    /**
+     * CUUID of the entry that contains this audio stream.
+     */
+    HX_CUUID wavefile_cuuid;
+  } info;
+  
+  /**
+   * Size of the audio data, in bytes.
+   */
+  HX_Size size;
+  
+  /**
+   * Audio data.
+   */
   signed short* data;
-  hx_audio_stream_info_t info;
-  hx_cuuid_t wavefile_cuuid;
-} hx_audio_stream_t;
+} HX_AudioStream;
 
 /**
- * Get the name of audio format `c`.
+ * Get the name of an audio format.
  */
-const char* hx_format_name(enum hx_format c);
+const char* hx_audio_format_name(const enum HX_AudioFormat);
+
+void hx_audio_stream_init(HX_AudioStream *);
+void hx_audio_stream_dealloc(HX_AudioStream *);
 
 /**
- * Set the default parameters of audio stream `s`.
+ * Get the size of an audio stream.
+ * @return Size of the stream in bytes.
  */
-void hx_audio_stream_init(hx_audio_stream_t *s);
+HX_Size hx_audio_stream_size(const HX_AudioStream *);
 
 /**
- * Deallocate an audio stream.
+ * Write audio stream to a waveformat file.
+ * @param[in] stream Audio stream to be written
+ * @return 1 on success.
  */
-void hx_audio_stream_dealloc(hx_audio_stream_t *s);
+int hx_audio_stream_write_wav(const HX_Context *, HX_AudioStream *stream, const char* filename);
 
 /**
- * Get the size of audio stream `s` in bytes.
- */
-hx_size_t hx_audio_stream_size(const hx_audio_stream_t *s);
-
-/**
- * Write audio stream to .wav file
- */
-int hx_audio_stream_write_wav(const hx_t *hx, hx_audio_stream_t *s, const char* filename);
-
-/**
- * Convert audio data from stream `i_stream` into `o_stream`.
+ * Convert audio data.
  * The parameters of the desired output format should be set in the output stream info.
- * Return: 1 on success, 0 on encoding/decoding error, -1 on unsupported format.
+ * If the format of both the input and output stream is PCM, no conversion will be performed.
+ * @param[in]     i_stream  Input audio stream
+ * @param[in,out] o_stream  Output audio stream
+ * @return 1 on success, 0 on encoding/decoding error, -1 on unsupported format.
  */
-int hx_audio_convert(const hx_audio_stream_t* i_stream, hx_audio_stream_t* o_stream);
+int hx_audio_convert(const HX_AudioStream *i_stream, HX_AudioStream *o_stream);
+
 
 #pragma mark - Class -
 
-#define HX_LINK(...) struct { hx_cuuid_t cuuid; __VA_ARGS__; } *
+#define HX_LINK(...) struct { HX_CUUID cuuid; __VA_ARGS__; } *
 
-enum hx_class {
+enum HX_Class {
   HX_CLASS_EVENT_RESOURCE_DATA,
   HX_CLASS_WAVE_RESOURCE_DATA,
   HX_CLASS_SWITCH_RESOURCE_DATA,
@@ -115,53 +146,50 @@ enum hx_class {
 };
 
 /**
- * EventResData:
+ * EventResData
  * An event called by the game to start or stop audio playback.
  */
-typedef struct hx_event_resource_data {
+typedef struct EventResData {
   unsigned int type;
   /** The name of the event. Usually starts with 'Play_' or 'Stop_'. */
   char name[HX_STRING_MAX_LENGTH];
   /** Flags */
   unsigned int flags;
   /** The linked entry */
-  hx_cuuid_t link;
+  HX_CUUID link;
   /** Unknown parameters. */
   float c[4];
-} hx_event_resource_data_t;
+} HX_EventResData;
 
 /**
- * WavResObj:
- * Superclass to WavResData
+ * Superclass to WavResData.
  */
-typedef struct hx_wav_resource_object {
+typedef struct WavResObj {
   unsigned int id;
   unsigned int size;
   float c[3];
-  signed char flags;
+  unsigned char flags;
   /** Name of the resource. (.hxc only?) */
   char name[HX_STRING_MAX_LENGTH];
-} hx_wav_resource_object_t;
+} HX_WavResObj;
 
 /**
- * WavResData:
  * A set of WaveFileIdObj links.
  */
-typedef struct hx_wav_resource_data {
-  hx_wav_resource_object_t res_data;
+typedef struct WavResData {
+  HX_WavResObj res_data;
   /** Default link CUUID. */
-  hx_cuuid_t default_cuuid;
+  HX_CUUID default_cuuid;
   /** Number of language links. */
   unsigned int num_links;
   /* Language links to WaveFileIdObj entries  */
-  HX_LINK(enum hx_language language) links;
-} hx_wav_resource_data_t;
+  HX_LINK(enum HX_Language language) links;
+} HX_WavResData;
 
 /**
- * RandomResData:
- * Links to WavResData objects with probabilities of being played.
+ * A set of links to WavResData objects with probabilities of being played.
  */
-typedef struct hx_random_resource_data {
+typedef struct RandomResData {
   unsigned int flags;
   /** Unknown offset */
   float offset;
@@ -171,152 +199,189 @@ typedef struct hx_random_resource_data {
   unsigned int num_links;
   /** ResData links */
   HX_LINK(float probability) links;
-} hx_random_resource_data_t;
+} HX_RandomResData;
 
 /**
- * SwitchResData:
- * A kind of switch statement with cuuid links.
+ * A switch statement of entry links.
  */
-typedef struct hx_switch_resource_data {
+typedef struct SwitchResData {
   unsigned int flag;
   unsigned int unknown;
   unsigned int unknown2;
   unsigned int start_index;
   unsigned int num_links;
   HX_LINK(unsigned int case_index) links;
-} hx_switch_resource_data_t;
+} HX_SwitchResData;
 
 /**
- * ProgramResData:
  * An interpreted program with WavResData links.
  */
-typedef struct hx_program_resource_data {
+typedef struct ProgramResData {
   int num_links;
-  hx_cuuid_t links[256];
+  HX_CUUID links[256];
   void* data;
-} hx_program_resource_data_t;
+} HX_ProgramResData;
 
-typedef struct hx_id_object_pointer {
-  unsigned int id;
-  float unknown;
-  /* */
-  unsigned int flags;
-  unsigned int unknown2;
-} hx_id_object_pointer_t;
+/* the resource is located in an external file */
+#define HX_ID_OBJ_PTR_FLAG_EXTERNAL (1 << 0)
+/* the resource is located in the bigger file */
+#define HX_ID_OBJ_PTR_FLAG_BIG_FILE (1 << 1)
 
 /**
- * WaveFileIdObj:
+ * Location data for a resource.
+ */
+typedef struct IdObjPtr {
+  unsigned int id;
+  float unknown;
+  unsigned int flags;
+  unsigned int unknown2;
+} HX_IdObjPtr;
+
+/**
  * Holds references to an audio stream and its information.
  */
-typedef struct hx_wave_file_id_object {
+typedef struct WaveFileIdObj {
   /** Object pointer info */
-  struct hx_id_object_pointer id_obj;
+  HX_IdObjPtr id_obj;
   /** Name of the stream */
   char name[HX_STRING_MAX_LENGTH];
   /** Filename of the external stream */
   char ext_stream_filename[HX_STRING_MAX_LENGTH];
   /** Size of the external stream */
-  hx_size_t ext_stream_size;
+  HX_Size ext_stream_size;
   /** Offset in the external stream */
-  hx_size_t ext_stream_offset;
+  HX_Size ext_stream_offset;
   /** Audio stream */
-  hx_audio_stream_t *audio_stream;
-  /* internal */
-  void* wave_header;
-  void* extra_wave_data;
-  hx_size_t extra_wave_data_length;
-} hx_wave_file_id_object_t;
+  HX_AudioStream *audio_stream;
+  
+  /* private */
+  void* _wave_header;
+  void* _extra_wave_data;
+  HX_Size _extra_wave_data_length;
+} HX_WaveFileIdObj;
 
 /**
- * Get the name of a class `c` for specified version `v`.
- * Returns the length of the output string.
+ * Get the name of a class for a specific version.
+ * @param[in]   i_class   Class to format into string
+ * @param[in]   i_version Version to format the class for
+ * @param[out]  buf       Output buffer
+ * @param[in]   buf_sz    Length of the output buffer
+ * @return The length of the output string.
  */
-hx_size_t hx_class_name(enum hx_class c, enum hx_version v, char* buf, hx_size_t buf_sz);
+HX_Size hx_class_name(enum HX_Class i_class, enum HX_Version i_version, char* buf, HX_Size buf_sz);
+
 
 #pragma mark - Entry
 
-typedef struct hx_entry {
-  hx_cuuid_t cuuid;
-  /** The class of the entry object */
-  enum hx_class i_class;
-  /** Entry class data */
-  void* data;
-  
-  /** Number of linked entries */
-  unsigned int num_links;
-  /** Linked entry CUUIDs */
-  hx_cuuid_t* links;
-  
-  /** Number of languages */
-  unsigned int num_languages;
-  /** Language links */
-  HX_LINK(enum hx_language language, unknown) language_links;
-  
-  /** File offset when writing */
-  unsigned int file_offset;
-  /** Entry size in bytes */
-  unsigned int file_size;
-  unsigned int tmp_file_size;
-} hx_entry_t;
-
-#undef HX_LINK
-
 /**
- * Initialize an entry
+ * HX index entry / class container.
  */
-void hx_entry_init(hx_entry_t *e);
+typedef struct HX_Entry {
+  /**
+   * The unique identifier of this entry.
+   * May be shared across multiple context resource files.
+   */
+  HX_CUUID i_cuuid;
+  
+  /**
+   * The class of the entry object.
+   */
+  enum HX_Class i_class;
+  
+  /**
+   * Pointer to the class data.
+   */
+  void* p_data;
+  
+  /**
+   * The number of linked CUUIDs.
+   */
+  HX_Size num_links;
+  
+  /**
+   * Linked entry CUUIDs.
+   */
+  HX_CUUID* links;
+  
+  /**
+   * Number of language links.
+   */
+  HX_Size num_languages;
+  
+  /**
+   * Language links.
+   */
+  HX_LINK(enum HX_Language language, unknown) language_links;
+  
+  /* private */
+  HX_Size _file_offset;
+  HX_Size _file_size;
+  HX_Size _tmp_file_size;
+} HX_Entry;
 
-/**
- * Deallocate entry data
- */
-void hx_entry_dealloc(hx_entry_t *e);
+void hx_entry_init(HX_Entry *);
+void hx_entry_dealloc(HX_Entry *);
+
 
 #pragma mark - Context
 
 /**
  * Allocate an empty context.
+ * @return Handle to the new context or NULL.
  */
-hx_t *hx_context_alloc();
+HX_Context *hx_context_alloc(void);
 
 /**
- * Set read, write and error callbacks for the specified context, with an optional userdata pointer.
+ * Set file i/o and error callbacks for the specified context.
+ * @param[in] read  Read callback
+ * @param[in] write Write callback
+ * @param[in] error Error callback
  */
-void hx_context_callback(hx_t *hx, hx_read_callback_t read, hx_write_callback_t write, hx_error_callback_t error, void* userdata);
+void hx_context_callback(HX_Context *, HX_ReadCallback read, HX_WriteCallback write, HX_ErrorCallback error, void* userdata);
 
 /**
- * Load a hxaudio file (.hxd, .hxc, .hx2, .hxg, .hxx, .hx3) into context `hx`.
+ * Load a .hx file.
+ * @param[in] filename Filename with extension
+ * @return 0 on success, -1 on failure.
  */
-int hx_context_open(hx_t *hx, const char* filename);
+int hx_context_open(HX_Context *, const char* filename);
 
 /**
- * Get the current version of a context
+ * Get current context version.
  */
-enum hx_version hx_context_version(const hx_t *hx);
+enum HX_Version hx_context_version(const HX_Context *);
 
 /**
- * Get the number of entries in a context
+ * Get context entry count.
+ * @return The total number of entries in the context.
  */
-hx_size_t hx_context_num_entries(const hx_t *hx);
+HX_Size hx_context_num_entries(const HX_Context *);
 
 /**
- * Get an entry by index
+ * Get an entry by index.
+ * @param[in] index A number less than the result of hx_context_num_entries
+ * @return The entry at the specified index or NULL.
  */
-hx_entry_t *hx_context_get_entry(const hx_t *hx, hx_size_t index);
+HX_Entry *hx_context_get_entry(const HX_Context *, HX_Size index);
 
 /**
- * Find entry by cuuid
+ * Find an entry by CUUID.
+ * @param[in] cuuid Unique 64-bit identifier
+ * @return The entry with specified cuuid or NULL if not found.
  */
-hx_entry_t *hx_context_find_entry(const hx_t *hx, hx_cuuid_t cuuid);
+HX_Entry *hx_context_find_entry(const HX_Context *, HX_CUUID cuuid);
 
 /**
- * Write context to file.
+ * Write context and resources to files.
+ * @param[in] filename  Name of the .hx output file
+ * @param[in] version   Desired version of the output context
  */
-void hx_context_write(hx_t *hx, const char* filename, enum hx_version version);
+void hx_context_write(HX_Context *, const char* filename, enum HX_Version version);
 
 /**
- * Deallocate a context.
+ * Free context data and all entries.
  */
-void hx_context_free(hx_t **hx);
+void hx_context_free(HX_Context **);
 
 #ifdef __cplusplus
 }
