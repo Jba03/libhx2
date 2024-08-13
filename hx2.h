@@ -18,7 +18,7 @@ extern "C" {
 typedef unsigned int HX_Size;
 /** A 64-bit unique identifier */
 typedef unsigned long long HX_CUUID;
-typedef char HX_String[HX_STRING_MAX_LENGTH];
+/** Context handle */
 typedef struct HX_Context HX_Context;
 
 typedef char*(*HX_ReadCallback)(const char* filename, size_t pos, size_t *size, void* userdata);
@@ -313,7 +313,7 @@ typedef struct HX_Entry {
   /**
    * Language links.
    */
-  HX_LINK(enum HX_Language language, unknown) language_links;
+  HX_LINK(enum HX_Language language; unsigned unknown) language_links;
   
   /* private */
   HX_Size _file_offset;
